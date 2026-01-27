@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Trip Planning - Refined Border Variant 1</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        "terracotta": {
+                            "50": "#fdf4f2",
+                            "100": "#fbe7e2",
+                            "200": "#f8d2c9",
+                            "300": "#f1b1a3",
+                            "400": "#e68571",
+                            "500": "#d95f47",
+                            "600": "#c44b36",
+                            "700": "#a43c2a",
+                        },
+                        "warm-cream": "#faf7f2",
+                        "sunset-dark": "#4a3733",
+                        "sunset-muted": "#8c7a76",
+                        "icon-grey": "#c2b8b6",
+                    },
+                    fontFamily: {
+                        "display": ["Plus Jakarta Sans", "sans-serif"]
+                    }
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        body {
+            font-family: "Plus Jakarta Sans", sans-serif;
+            background-color: theme('colors.warm-cream');
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 40;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 40;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+        }
+        .glass-price {
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+        .card-container {
+            background: white;
+            border: 1.5px solid white;
+            box-shadow: 0 4px 20px -2px rgba(74, 55, 51, 0.05);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="text-sunset-dark font-display antialiased">
+<div class="relative flex min-h-screen w-full flex-col max-w-[480px] mx-auto bg-warm-cream pb-32">
+<header class="sticky top-0 z-40 bg-warm-cream/95 backdrop-blur-md px-5 pt-14 pb-4">
+<div class="flex items-center justify-between mb-6">
+<div class="flex items-center gap-3">
+<button class="w-10 h-10 flex items-center justify-center bg-white rounded-full shadow-sm">
+<span class="material-symbols-outlined text-sunset-dark !text-[24px]">menu</span>
+</button>
+<h1 class="text-xl font-bold tracking-tight">Rio de Janeiro</h1>
+</div>
+<div class="flex items-center gap-2">
+<div class="flex items-center p-1 bg-terracotta-100/40 rounded-full h-10">
+<button class="w-8 h-8 flex items-center justify-center rounded-full bg-white text-terracotta-600 shadow-sm">
+<span class="material-symbols-outlined !text-[20px] fill">grid_view</span>
+</button>
+<button class="w-8 h-8 flex items-center justify-center rounded-full text-sunset-muted">
+<span class="material-symbols-outlined !text-[20px]">format_list_bulleted</span>
+</button>
+</div>
+<button class="w-10 h-10 flex items-center justify-center bg-white rounded-full shadow-sm">
+<span class="material-symbols-outlined text-sunset-dark !text-[24px]">notifications</span>
+</button>
+</div>
+</div>
+<div class="flex p-1 bg-terracotta-100/40 rounded-2xl mb-6">
+<button class="flex-1 py-2 text-sm font-bold rounded-xl bg-white text-terracotta-600 shadow-sm">
+                    Sugestões
+                </button>
+<button class="flex-1 py-2 text-sm font-semibold text-sunset-muted">
+                    Confirmados
+                </button>
+</div>
+<div class="flex items-center justify-between px-2">
+<button class="flex flex-col items-center justify-center transition-all scale-110">
+<span class="material-symbols-outlined text-terracotta-600 !text-[32px] fill">apps</span>
+</button>
+<button class="flex flex-col items-center justify-center">
+<span class="material-symbols-outlined text-icon-grey !text-[28px]">bed</span>
+</button>
+<button class="flex flex-col items-center justify-center">
+<span class="material-symbols-outlined text-icon-grey !text-[28px]">restaurant</span>
+</button>
+<button class="flex flex-col items-center justify-center">
+<span class="material-symbols-outlined text-icon-grey !text-[28px]">explore</span>
+</button>
+<button class="flex flex-col items-center justify-center">
+<span class="material-symbols-outlined text-icon-grey !text-[28px]">flight</span>
+</button>
+<button class="flex flex-col items-center justify-center">
+<span class="material-symbols-outlined text-icon-grey !text-[28px]">directions_car</span>
+</button>
+</div>
+</header>
+<main class="flex-1 px-5 mt-4 space-y-6">
+<div class="card-container rounded-[32px] p-2.5">
+<div class="relative aspect-[16/11] w-full overflow-hidden rounded-[24px]">
+<img alt="Hotel Fasano" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuARZZYXEgeqtmBmTO5Dw-9ZYUeR6Y-TTo6y9dc-vMahzqW2x6suoAm-FvhHDjU1HvVhPdFdBkAsQTqfLp1I7HbYuFgP8uvwxhb8cfPi7KRP-aoeJZNurtCfArOaOzV2EthNguIeAIVZW5N7yLTtd8aMyznEbQk3ycuVWG5-nNkY_5ts6Eau_ggjBlVUo8W667ybdphcGT-FmvyTGL7AijlLNtAFLaWITZ1XrEHX4ny9XodPQi6uzurzEi9lQdvnP9I51ZW9ptz9QqHN"/>
+<div class="absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-full glass-card text-white">
+<span class="material-symbols-outlined !text-[18px] fill">favorite</span>
+<span class="text-xs font-bold">12</span>
+</div>
+<div class="absolute bottom-3 left-3 px-3 py-1.5 rounded-full glass-price text-white text-[11px] font-semibold border border-white/20">
+                        R$ 2.400 /noite
+                    </div>
+</div>
+<div class="flex items-center justify-between gap-2 px-2 pt-3 pb-1">
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-1.5 mb-0.5">
+<span class="text-[10px] uppercase tracking-widest font-bold text-terracotta-500">Hospedagem</span>
+<span class="text-[10px] text-sunset-muted font-medium">• Ipanema</span>
+</div>
+<h3 class="text-base font-bold text-sunset-dark truncate">Hotel Fasano</h3>
+<div class="flex items-center gap-1 mt-0.5">
+<span class="material-symbols-outlined !text-[12px] text-terracotta-500 fill">star</span>
+<span class="text-xs font-bold">4.9</span>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="w-10 h-10 flex items-center justify-center rounded-full border border-terracotta-100 text-terracotta-600 bg-white">
+<span class="material-symbols-outlined !text-[20px]">share</span>
+</button>
+<button class="flex items-center justify-center gap-2 bg-terracotta-600 text-white px-4 h-10 rounded-full shadow-lg shadow-terracotta-100/50">
+<span class="text-xs font-bold">Confirmar</span>
+<span class="material-symbols-outlined !text-[16px] font-bold">check_circle</span>
+</button>
+</div>
+</div>
+</div>
+<div class="card-container rounded-[32px] p-2.5">
+<div class="relative aspect-[16/11] w-full overflow-hidden rounded-[24px]">
+<img alt="Restaurante Aprazível" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDSszz0p0ypwshvVf1pwF1-g7DJBTEJnKMqSYSgveL3LdrKDuryoPjWOJ2Ws3eQB8COL9DBSQfWpfANA_opWcKqGQSHPX3SJge_DfCVJT5W6PFNXUN8qHiZK9RkMhQLyL7HGez_c1Yc11i913XTpCutF8ypcCk6j8SFEEVDTvXmZkOeoV_thkrHzC108Is09A-EuQqYvp5bFy9GYEdEwxCkqPpXmqOg_RHgJm2xNIyxduMVgqwUO6T7tEsKivocAIb8bsseSWt31OR5"/>
+<div class="absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-full glass-card text-white">
+<span class="material-symbols-outlined !text-[18px] fill">favorite</span>
+<span class="text-xs font-bold">8</span>
+</div>
+<div class="absolute bottom-3 left-3 px-3 py-1.5 rounded-full glass-price text-white text-[11px] font-semibold border border-white/20">
+                        R$ 350 média
+                    </div>
+</div>
+<div class="flex items-center justify-between gap-2 px-2 pt-3 pb-1">
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-1.5 mb-0.5">
+<span class="text-[10px] uppercase tracking-widest font-bold text-terracotta-500">Gastrô</span>
+<span class="text-[10px] text-sunset-muted font-medium">• Santa Teresa</span>
+</div>
+<h3 class="text-base font-bold text-sunset-dark truncate">Restaurante Aprazível</h3>
+<div class="flex items-center gap-1 mt-0.5">
+<span class="material-symbols-outlined !text-[12px] text-terracotta-500 fill">star</span>
+<span class="text-xs font-bold">4.8</span>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="w-10 h-10 flex items-center justify-center rounded-full border border-terracotta-100 text-terracotta-600 bg-white">
+<span class="material-symbols-outlined !text-[20px]">share</span>
+</button>
+<button class="flex items-center justify-center gap-2 bg-terracotta-600 text-white px-4 h-10 rounded-full shadow-lg shadow-terracotta-100/50">
+<span class="text-xs font-bold">Confirmar</span>
+<span class="material-symbols-outlined !text-[16px] font-bold">check_circle</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+<nav class="fixed bottom-0 left-0 right-0 max-w-[480px] mx-auto bg-white/90 backdrop-blur-xl border-t border-terracotta-100 px-6 pt-3 pb-8 flex justify-between items-center z-50">
+<button class="flex flex-col items-center gap-1 text-sunset-muted">
+<span class="material-symbols-outlined !text-[26px]">home</span>
+<span class="text-[10px] font-bold uppercase tracking-tight">Início</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-terracotta-600">
+<span class="material-symbols-outlined !text-[26px] fill">beach_access</span>
+<span class="text-[10px] font-bold uppercase tracking-tight">Viagens</span>
+</button>
+<button class="w-12 h-12 flex items-center justify-center bg-terracotta-600 rounded-full text-white shadow-xl shadow-terracotta-200 border-4 border-white">
+<span class="material-symbols-outlined !text-[28px]">add</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-sunset-muted">
+<span class="material-symbols-outlined !text-[26px]">event_repeat</span>
+<span class="text-[10px] font-bold uppercase tracking-tight">Feriados</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-sunset-muted">
+<span class="material-symbols-outlined !text-[26px]">wallet</span>
+<span class="text-[10px] font-bold uppercase tracking-tight">Finanças</span>
+</button>
+</nav>
+</div>
+
+</body></html>

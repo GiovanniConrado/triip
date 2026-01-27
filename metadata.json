@@ -1,0 +1,8 @@
+{
+  "name": "Sunset Travel",
+  "description": "A refined travel planning app for groups, focusing on group expenses and itineraries with a warm sunset aesthetic.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}
