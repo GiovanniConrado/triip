@@ -15,6 +15,7 @@ interface ExpenseCardProps {
     isTrackMode: boolean;
     onEdit: (expense: Expense) => void;
     onDelete: (expenseId: string) => void;
+    onClick?: (expense: Expense) => void;
 }
 
 const ExpenseCard: React.FC<ExpenseCardProps> = ({
@@ -24,9 +25,13 @@ const ExpenseCard: React.FC<ExpenseCardProps> = ({
     isTrackMode,
     onEdit,
     onDelete,
+    onClick,
 }) => {
     return (
-        <div className="bg-white rounded-2xl p-4 border border-terracotta-100 shadow-sm flex items-center gap-3 group">
+        <div
+            onClick={() => onClick?.(expense)}
+            className={`bg-white rounded-2xl p-4 border border-terracotta-100 shadow-sm flex items-center gap-3 group transition-all ${onClick ? 'cursor-pointer hover:border-terracotta-200 hover:shadow-md active:scale-[0.99]' : ''}`}
+        >
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white ${categoryInfo?.color || 'bg-slate-400'}`}>
                 <span className="material-symbols-outlined text-xl">{categoryInfo?.icon || 'payments'}</span>
             </div>

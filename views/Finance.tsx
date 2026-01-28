@@ -72,6 +72,8 @@ const Finance = () => {
 
     const [suggestions, setSuggestions] = useState<any[]>([]); // For validation when removing participant
     const [isAdmin, setIsAdmin] = useState(false);
+    const [viewingExpense, setViewingExpense] = useState<Expense | null>(null);
+    const [showReceiptFull, setShowReceiptFull] = useState(false);
 
     useEffect(() => {
         const loadTrip = async () => {
@@ -804,6 +806,7 @@ const Finance = () => {
                             onEdit={handleOpenEditExpense}
                             onDelete={handleDeleteExpense}
                             onAddClick={() => setShowAddExpense(true)}
+                            onView={(exp) => setViewingExpense(exp)}
                         />
                     </>
                 )}
@@ -1381,6 +1384,7 @@ const Finance = () => {
             />
 
             {mergingParticipant && (
+                // ...existing mergingParticipant modal...
                 <div className="fixed inset-0 z-[60] flex items-end justify-center max-w-[480px] mx-auto">
                     <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setMergingParticipant(null)}></div>
                     <div className="relative w-full bg-white rounded-t-3xl shadow-2xl p-6 animate-slide-up">
@@ -1423,6 +1427,176 @@ const Finance = () => {
                             Cancelar
                         </button>
                     </div>
+                </div>
+            )}
+
+            {/* Expense Detail Modal */}
+            {viewingExpense && (
+                <div className="fixed inset-0 z-50 flex items-end justify-center max-w-[480px] mx-auto">
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setViewingExpense(null)}></div>
+                    <div className="relative w-full bg-white rounded-t-3xl shadow-2xl max-h-[90vh] overflow-y-auto animate-slide-up">
+                        <div className="sticky top-0 bg-white border-b border-terracotta-100 px-6 py-4 z-10 flex items-center justify-between">
+                            <h2 className="text-xl font-bold">Detalhes da Despesa</h2>
+                            <button onClick={() => setViewingExpense(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-terracotta-50 text-terracotta-600">
+                                <span className="material-symbols-outlined text-xl">close</span>
+                            </button>
+                        </div>
+
+                        <div className="p-6 space-y-6">
+                            {/* Header Info */}
+                            <div className="text-center">
+                                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-white mx-auto mb-3 shadow-lg ${CATEGORIES.find(c => c.id === viewingExpense.category)?.color || 'bg-slate-400'}`}>
+                                    <span className="material-symbols-outlined text-3xl">{CATEGORIES.find(c => c.id === viewingExpense.category)?.icon || 'payments'}</span>
+                                </div>
+                                <h3 className="text-2xl font-black text-sunset-dark uppercase tracking-tight">{viewingExpense.description}</h3>
+                                <p className="text-3xl font-black text-terracotta-600 mt-1">R$ {viewingExpense.amount.toFixed(2)}</p>
+                                <p className="text-xs font-bold text-sunset-muted uppercase tracking-widest mt-1">
+                                    {new Date(viewingExpense.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                                </p>
+                            </div>
+
+                            {/* Details Grid */}
+                            <div className="bg-warm-cream rounded-3xl p-5 border border-terracotta-100 space-y-4">
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="font-bold text-sunset-muted">Paga por</span>
+                                    <div className="flex items-center gap-2">
+                                        <img src={currentTrip?.participants.find(p => p.id === viewingExpense.paidBy)?.avatar} alt="" className="w-6 h-6 rounded-full object-cover" />
+                                        <span className="font-black text-sunset-dark">{currentTrip?.participants.find(p => p.id === viewingExpense.paidBy)?.name}</span>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="font-bold text-sunset-muted">Categoria</span>
+                                    <span className="font-black text-sunset-dark">{viewingExpense.category}</span>
+                                </div>
+
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="font-bold text-sunset-muted">Método</span>
+                                    <span className="font-black text-sunset-dark">
+                                        {viewingExpense.paymentMethod === 'installment' ? 'Parcelado' : 'À Vista'}
+                                    </span>
+                                </div>
+
+                                {viewingExpense.paymentMethod === 'installment' && viewingExpense.installment && (
+                                    <div className="pt-3 border-t border-terracotta-100 space-y-2">
+                                        <div className="flex items-center justify-between text-sm">
+                                            <span className="font-bold text-sunset-muted">Parcelas</span>
+                                            <span className="font-black text-amber-600">{viewingExpense.installment.paid} de {viewingExpense.installment.total} pagas</span>
+                                        </div>
+                                        <div className="flex items-center justify-between text-sm">
+                                            <span className="font-bold text-sunset-muted">Valor Parcela</span>
+                                            <span className="font-black text-sunset-dark">R$ {viewingExpense.installment.amount.toFixed(2)}</span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Participants */}
+                            <div>
+                                <h4 className="text-[10px] font-bold text-sunset-muted uppercase tracking-widest mb-3 px-1">Dividido com</h4>
+                                <div className="flex flex-wrap gap-2">
+                                    {viewingExpense.participants.map(pId => {
+                                        const p = currentTrip?.participants.find(part => part.id === pId);
+                                        return (
+                                            <div key={pId} className="flex items-center gap-2 px-3 py-1.5 bg-white border border-terracotta-100 rounded-full shadow-sm">
+                                                <img src={p?.avatar} alt="" className="w-5 h-5 rounded-full object-cover" />
+                                                <span className="text-xs font-bold text-sunset-dark">{p?.name.split(' ')[0]}</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Receipt Preview */}
+                            {viewingExpense.receiptUrl && (
+                                <div className="space-y-3">
+                                    <h4 className="text-[10px] font-bold text-sunset-muted uppercase tracking-widest px-1">Comprovante</h4>
+                                    <div
+                                        onClick={() => setShowReceiptFull(true)}
+                                        className="relative group cursor-pointer overflow-hidden rounded-2xl border border-terracotta-100 shadow-inner bg-slate-100 aspect-[4/3] flex items-center justify-center"
+                                    >
+                                        {viewingExpense.receiptUrl.toLowerCase().split('?')[0].endsWith('.pdf') ? (
+                                            <div className="flex flex-col items-center gap-2">
+                                                <span className="material-symbols-outlined text-6xl text-red-500">picture_as_pdf</span>
+                                                <span className="text-xs font-bold text-sunset-muted uppercase">Clique para abrir PDF</span>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <img
+                                                    src={viewingExpense.receiptUrl}
+                                                    alt="Comprovante"
+                                                    className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                                                />
+                                                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                    <span className="bg-white/90 px-4 py-2 rounded-xl text-xs font-bold text-sunset-dark">Ver em tela cheia</span>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Actions */}
+                            <div className="flex gap-3 pt-4 pb-8">
+                                <button
+                                    onClick={() => {
+                                        handleOpenEditExpense(viewingExpense);
+                                        setViewingExpense(null);
+                                    }}
+                                    className="flex-1 h-14 bg-white border-2 border-terracotta-500 text-terracotta-600 font-bold rounded-2xl active:scale-95 transition-all flex items-center justify-center gap-2"
+                                >
+                                    <span className="material-symbols-outlined text-xl">edit</span>
+                                    Editar
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setExpenseToDelete(viewingExpense.id);
+                                        setViewingExpense(null);
+                                    }}
+                                    className="flex-1 h-14 bg-red-50 text-red-600 font-bold rounded-2xl active:scale-95 transition-all flex items-center justify-center gap-2"
+                                >
+                                    <span className="material-symbols-outlined text-xl">delete</span>
+                                    Excluir
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* FULL SCREEN RECEIPT VIEWER */}
+            {showReceiptFull && viewingExpense?.receiptUrl && (
+                <div className="fixed inset-0 z-[100] bg-black/95 flex flex-col items-center justify-center animate-fade-in">
+                    <button
+                        onClick={() => setShowReceiptFull(false)}
+                        className="absolute top-8 right-6 w-12 h-12 flex items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-md active:scale-90 transition-transform"
+                    >
+                        <span className="material-symbols-outlined text-3xl">close</span>
+                    </button>
+
+                    <div className="w-full h-full p-4 flex items-center justify-center">
+                        {viewingExpense.receiptUrl.toLowerCase().split('?')[0].endsWith('.pdf') ? (
+                            <iframe
+                                src={viewingExpense.receiptUrl}
+                                className="w-full h-full max-w-[480px] rounded-2xl bg-white"
+                                title="Receipt PDF"
+                            />
+                        ) : (
+                            <img
+                                src={viewingExpense.receiptUrl}
+                                alt="Receipt Full"
+                                className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+                            />
+                        )}
+                    </div>
+
+                    <button
+                        onClick={() => window.open(viewingExpense.receiptUrl, '_blank')}
+                        className="absolute bottom-12 px-6 py-3 bg-white/10 text-white border border-white/20 rounded-2xl font-bold flex items-center gap-2 active:scale-95 transition-all"
+                    >
+                        <span className="material-symbols-outlined">download</span>
+                        Abrir Original
+                    </button>
                 </div>
             )}
             <BottomNav />

@@ -17,6 +17,7 @@ interface ExpenseListProps {
     onEdit: (expense: Expense) => void;
     onDelete: (expenseId: string) => void;
     onAddClick: () => void;
+    onView?: (expense: Expense) => void;
 }
 
 const ExpenseList: React.FC<ExpenseListProps> = ({
@@ -27,6 +28,7 @@ const ExpenseList: React.FC<ExpenseListProps> = ({
     onEdit,
     onDelete,
     onAddClick,
+    onView,
 }) => {
     return (
         <>
@@ -60,6 +62,7 @@ const ExpenseList: React.FC<ExpenseListProps> = ({
                                 isTrackMode={isTrackMode}
                                 onEdit={onEdit}
                                 onDelete={onDelete}
+                                onClick={onView}
                             />
                         );
                     })}
