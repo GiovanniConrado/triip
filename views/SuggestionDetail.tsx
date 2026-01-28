@@ -7,6 +7,7 @@ import Toast, { ToastType } from '../components/Toast';
 import Loading from '../components/Loading';
 import ImageUpload from '../components/ImageUpload';
 import { DEFAULT_TRIP_IMAGE } from '../constants';
+import LoadingButton from '../components/LoadingButton';
 
 const CATEGORIES = [
     { id: 'Hospedagem', icon: 'bed', label: 'Hospedagem' },
@@ -27,6 +28,7 @@ const SuggestionDetail: React.FC = () => {
     const [linkCopied, setLinkCopied] = useState(false);
     const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [showActionsModal, setShowActionsModal] = useState(false);
     const [showPriceSyncConfirm, setShowPriceSyncConfirm] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -69,6 +71,7 @@ const SuggestionDetail: React.FC = () => {
             }
         };
         loadData();
+        return storageService.subscribe(loadData);
     }, [id, suggestionId]);
 
     const handleShareWhatsApp = () => {
@@ -87,10 +90,21 @@ const SuggestionDetail: React.FC = () => {
 
     const handleConfirm = async () => {
         if (!suggestionId || !id) return;
-        const updated = await storageService.updateSuggestion(suggestionId, { status: 'confirmed' });
-        if (updated) {
-            setSuggestion(updated);
-            setToast({ message: 'Sugestão confirmada! ✨', type: 'success' });
+
+        // Optimistic UI Update
+        const previousStatus = suggestion?.status;
+        setSuggestion(prev => prev ? { ...prev, status: 'confirmed' } : null);
+        setToast({ message: 'Sugestão confirmada! ✨', type: 'success' });
+
+        try {
+            const updated = await storageService.updateSuggestion(suggestionId, { status: 'confirmed' });
+            if (!updated) {
+                throw new Error('Update failed');
+            }
+        } catch (error) {
+            // Revert on error
+            setSuggestion(prev => prev ? { ...prev, status: previousStatus! } : null);
+            setToast({ message: 'Erro ao confirmar sugestão. Revertendo...', type: 'error' });
         }
     };
 
@@ -111,20 +125,25 @@ const SuggestionDetail: React.FC = () => {
             }
         }
 
-        const success = await storageService.deleteSuggestion(suggestionId);
-        if (success) {
-            if (syncFinance) {
-                const expenses = await storageService.getExpensesByTrip(id);
-                const matchingExpense = expenses.find(e =>
-                    e.description?.includes(suggestion?.title || '')
-                );
-                if (matchingExpense) {
-                    await storageService.deleteExpense(matchingExpense.id);
+        setIsSubmitting(true);
+        try {
+            const success = await storageService.deleteSuggestion(suggestionId);
+            if (success) {
+                if (syncFinance) {
+                    const expenses = await storageService.getExpensesByTrip(id);
+                    const matchingExpense = expenses.find(e =>
+                        e.description?.includes(suggestion?.title || '')
+                    );
+                    if (matchingExpense) {
+                        await storageService.deleteExpense(matchingExpense.id);
+                    }
                 }
-            }
 
-            setToast({ message: syncFinance ? 'Item e lançamento removidos!' : 'Item removido com sucesso!', type: 'success' });
-            setTimeout(() => navigate(`/trip/${id}`), 1000);
+                setToast({ message: syncFinance ? 'Item e lançamento removidos!' : 'Item removido com sucesso!', type: 'success' });
+                setTimeout(() => navigate(`/trip/${id}`), 1000);
+            }
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -139,50 +158,78 @@ const SuggestionDetail: React.FC = () => {
             return;
         }
 
-        const updated = await storageService.updateSuggestion(suggestionId, {
-            ...editFormData,
-            price: editFormData.price ? `R$ ${editFormData.price}` : 'A consultar'
-        });
-
-        if (updated) {
-            if (syncFinance) {
-                // Try to find and update matching expense
-                const expenses = await storageService.getExpensesByTrip(id);
-                const matchingExpense = expenses.find(e =>
-                    e.description?.includes(suggestion?.title || '') ||
-                    e.description?.includes(editFormData.title)
-                );
-
-                if (matchingExpense) {
-                    await storageService.updateExpense(matchingExpense.id, {
-                        amount: parseFloat(editFormData.price.replace(',', '.'))
-                    });
-                }
-            }
-
-            setSuggestion(updated);
-            setShowEditModal(false);
-            setShowPriceSyncConfirm(false);
-            setToast({
-                message: syncFinance ? 'Item e finanças atualizados! 💰' : 'Item atualizado! ✨',
-                type: 'success'
+        setIsSubmitting(true);
+        try {
+            const updated = await storageService.updateSuggestion(suggestionId, {
+                ...editFormData,
+                price: editFormData.price ? `R$ ${editFormData.price}` : 'A consultar'
             });
+
+            if (updated) {
+                if (syncFinance) {
+                    // Try to find and update matching expense
+                    const expenses = await storageService.getExpensesByTrip(id);
+                    const matchingExpense = expenses.find(e =>
+                        e.description?.includes(suggestion?.title || '') ||
+                        e.description?.includes(editFormData.title)
+                    );
+
+                    if (matchingExpense) {
+                        await storageService.updateExpense(matchingExpense.id, {
+                            amount: parseFloat(editFormData.price.replace(',', '.'))
+                        });
+                    }
+                }
+
+                setSuggestion(updated);
+                setShowEditModal(false);
+                setShowPriceSyncConfirm(false);
+                setToast({
+                    message: syncFinance ? 'Item e finanças atualizados! 💰' : 'Item atualizado! ✨',
+                    type: 'success'
+                });
+            }
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
     const handleSendComment = async () => {
         if (newComment.trim() && suggestionId) {
-            const comment = await storageService.createComment({
+            const commentText = newComment.trim();
+            setNewComment('');
+
+            // Optimistic UI Update
+            const tempId = Math.random().toString();
+            const tempComment: SuggestionComment = {
+                id: tempId,
                 suggestionId,
                 userId: 'current-user',
                 userName: 'Você',
                 userAvatar: 'https://picsum.photos/id/64/100/100',
-                text: newComment.trim(),
-            });
-            if (comment) {
-                setComments(prev => [...prev, comment]);
-                setNewComment('');
-                setToast({ message: 'Comentário adicionado! 💬', type: 'success' });
+                text: commentText,
+                createdAt: new Date().toISOString(),
+            };
+            setComments(prev => [...prev, tempComment]);
+
+            try {
+                const comment = await storageService.createComment({
+                    suggestionId,
+                    userId: 'current-user',
+                    userName: 'Você',
+                    userAvatar: 'https://picsum.photos/id/64/100/100',
+                    text: commentText,
+                });
+                if (comment) {
+                    // Replace temp comment with real one
+                    setComments(prev => prev.map(c => c.id === tempId ? comment : c));
+                    setToast({ message: 'Comentário adicionado! 💬', type: 'success' });
+                }
+            } catch (error) {
+                // Revert on error
+                setComments(prev => prev.filter(c => c.id !== tempId));
+                setNewComment(commentText); // Restore input
+                setToast({ message: 'Erro ao enviar comentário.', type: 'error' });
             }
         }
     };
@@ -330,9 +377,14 @@ const SuggestionDetail: React.FC = () => {
                         <span className="material-symbols-outlined">delete_outline</span>
                     </button>
                     {suggestion.status === 'idea' ? (
-                        <button onClick={handleConfirm} className="flex-1 h-12 bg-terracotta-500 text-white font-bold rounded-2xl shadow-lg">
+                        <LoadingButton
+                            onClick={handleConfirm}
+                            isLoading={isSubmitting}
+                            loadingText="Confirmando..."
+                            className="flex-1 h-12 bg-terracotta-500 text-white font-bold rounded-2xl shadow-lg"
+                        >
                             Confirmar Escolha
-                        </button>
+                        </LoadingButton>
                     ) : (
                         <div className="flex-1 h-12 bg-green-500/10 text-green-600 font-bold rounded-2xl flex items-center justify-center gap-2">
                             <span className="material-symbols-outlined">check_circle</span>
@@ -540,9 +592,14 @@ const SuggestionDetail: React.FC = () => {
                                 />
                             </div>
 
-                            <button onClick={() => handleUpdate(false)} className="w-full h-14 bg-terracotta-500 text-white font-bold rounded-2xl shadow-lg shadow-terracotta-500/20 active:scale-95 transition-transform mt-4 mb-8">
+                            <LoadingButton
+                                onClick={() => handleUpdate(false)}
+                                isLoading={isSubmitting}
+                                loadingText="Salvando..."
+                                className="w-full h-14 bg-terracotta-500 text-white font-bold rounded-2xl shadow-lg shadow-terracotta-500/20 mt-4 mb-8"
+                            >
                                 Salvar Alterações
-                            </button>
+                            </LoadingButton>
                         </div>
                     </div>
                 </div>

@@ -6,6 +6,7 @@ import EmptyState from '../components/EmptyState';
 import { ListItemSkeleton } from '../components/Skeleton';
 import Toast, { ToastType } from '../components/Toast';
 import { notificationService, Notification } from '../services/notificationService';
+import { storageService } from '../services/storageService';
 
 const Notifications: React.FC = () => {
     const navigate = useNavigate();
@@ -61,11 +62,16 @@ const Notifications: React.FC = () => {
         }
     };
 
-    const handleNotificationClick = (notification: Notification) => {
+    const handleNotificationClick = async (notification: Notification) => {
         handleMarkAsRead(notification.id);
 
         // Navigate based on notification type and data
-        if (notification.data?.trip_id) {
+        if (notification.type === 'trip_invite' && notification.data?.trip_id) {
+            const tripId = notification.data.trip_id;
+            // Optimistically join before navigating to ensure the user is a member
+            await storageService.joinTrip(tripId);
+            navigate(`/trip/${tripId}`);
+        } else if (notification.data?.trip_id) {
             navigate(`/trip/${notification.data.trip_id}`);
         } else if (notification.data?.expense_id && notification.data?.trip_id) {
             navigate(`/finance/${notification.data.trip_id}`);

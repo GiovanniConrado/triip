@@ -1,4 +1,5 @@
 import React from 'react';
+import LoadingButton from './LoadingButton';
 
 interface ConfirmModalProps {
     isOpen: boolean;
@@ -9,6 +10,7 @@ interface ConfirmModalProps {
     onConfirm: () => void;
     onCancel: () => void;
     type?: 'danger' | 'warning' | 'info';
+    isLoading?: boolean;
 }
 
 const ConfirmModal: React.FC<ConfirmModalProps> = ({
@@ -20,6 +22,7 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
     onConfirm,
     onCancel,
     type = 'info',
+    isLoading = false,
 }) => {
     if (!isOpen) return null;
 
@@ -64,12 +67,13 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
                     >
                         {cancelText}
                     </button>
-                    <button
+                    <LoadingButton
                         onClick={onConfirm}
-                        className="flex-1 h-12 bg-terracotta-500 hover:bg-terracotta-600 text-white font-bold rounded-xl shadow-lg shadow-terracotta-500/30 active:scale-[0.98] transition-all"
+                        isLoading={isLoading}
+                        className="flex-1 h-12 bg-terracotta-500 hover:bg-terracotta-600 text-white font-bold rounded-xl shadow-lg shadow-terracotta-500/30"
                     >
                         {confirmText}
-                    </button>
+                    </LoadingButton>
                 </div>
             </div>
         </div>

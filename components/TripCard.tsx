@@ -1,10 +1,9 @@
-
 import React from 'react';
-import { Trip } from '../types';
+import { Trip, TripSummary } from '../types';
 import { DEFAULT_TRIP_IMAGE } from '../constants';
 
 interface TripCardProps {
-  trip: Trip;
+  trip: Trip | TripSummary;
   onClick: (id: string) => void;
 }
 

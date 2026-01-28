@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { storageService } from '../services/storageService';
-import { Trip } from '../types';
+import { TripSummary } from '../types';
 import Sidebar from '../components/Sidebar';
 import BottomNav from '../components/BottomNav';
 import { useAuth } from '../contexts/AuthContext';
@@ -11,11 +11,11 @@ const Home: React.FC = () => {
     const navigate = useNavigate();
     const { profile } = useAuth();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-    const [trips, setTrips] = useState<Trip[]>([]);
+    const [trips, setTrips] = useState<TripSummary[]>([]);
 
     useEffect(() => {
         const loadTrips = async () => {
-            const data = await storageService.getTrips();
+            const data = await storageService.getTripsSummary();
             setTrips(data);
         };
         loadTrips();
@@ -31,10 +31,7 @@ const Home: React.FC = () => {
     };
 
     const totalExpenses = useMemo(() => {
-        return trips.reduce((total, trip) => {
-            const tripTotal = (trip.expenses || []).reduce((sum, exp) => sum + exp.amount, 0);
-            return total + tripTotal;
-        }, 0);
+        return trips.reduce((total, trip) => total + (trip.totalSpent || 0), 0);
     }, [trips]);
 
     // Dynamic greeting based on time

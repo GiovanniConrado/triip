@@ -11,6 +11,7 @@ export interface Participant {
   email?: string;
   avatar: string;
   isExternal?: boolean;
+  role?: 'admin' | 'member';
 }
 
 export interface Installment {
@@ -51,6 +52,19 @@ export interface Trip {
   expenses: Expense[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface TripSummary {
+  id: string;
+  title: string;
+  destination: string;
+  startDate: string;
+  endDate: string;
+  dateRange: string;
+  imageUrl: string;
+  status: TripStatus;
+  participants: { id: string; avatar: string; name: string }[];
+  totalSpent?: number;
 }
 
 export type SuggestionStatus = 'confirmed' | 'idea';

@@ -21,6 +21,20 @@ const JoinTrip: React.FC = () => {
                 const data = await storageService.getTripById(id);
                 if (data) {
                     setTrip(data);
+
+                    // AUTO-JOIN LOGIC: If user is logged in, join immediately
+                    if (user) {
+                        setJoining(true);
+                        const success = await storageService.joinTrip(id);
+                        if (success) {
+                            navigate(`/trip/${id}`);
+                            return; // Stop here, we are redirecting
+                        } else {
+                            // If joining fails but we are logged in, we stay on the page to show errors or manual button
+                            console.error('Auto-join failed, allowing manual join');
+                        }
+                        setJoining(false);
+                    }
                 } else {
                     setError('Viagem não encontrada.');
                 }
@@ -32,7 +46,7 @@ const JoinTrip: React.FC = () => {
             }
         };
         loadTripSummary();
-    }, [id]);
+    }, [id, user, navigate]);
 
     const handleJoin = async () => {
         if (!user) {
@@ -60,7 +74,9 @@ const JoinTrip: React.FC = () => {
         return (
             <div className="min-h-screen bg-warm-cream flex flex-col items-center justify-center p-6 text-center">
                 <div className="w-16 h-16 border-4 border-terracotta-200 border-t-terracotta-600 rounded-full animate-spin mb-4"></div>
-                <p className="text-sunset-muted font-bold animate-pulse">Carregando convite especial...</p>
+                <p className="text-sunset-muted font-bold animate-pulse">
+                    {joining ? 'Entrando na viagem...' : 'Carregando convite especial...'}
+                </p>
             </div>
         );
     }

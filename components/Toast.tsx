@@ -18,44 +18,38 @@ const Toast: React.FC<ToastProps> = ({ message, type, onClose, duration = 3000 }
         return () => clearTimeout(timer);
     }, [duration, onClose]);
 
-    const getTypeStyles = () => {
+    const getColors = () => {
         switch (type) {
             case 'success':
-                return 'bg-emerald-500 border-emerald-600';
+                return { text: 'text-emerald-600', icon: 'check_circle', bg: 'bg-emerald-50/80', border: 'border-emerald-100' };
             case 'error':
-                return 'bg-red-500 border-red-600';
+                return { text: 'text-red-500', icon: 'error', bg: 'bg-red-50/80', border: 'border-red-100' };
             case 'warning':
-                return 'bg-amber-500 border-amber-600';
+                return { text: 'text-amber-600', icon: 'warning', bg: 'bg-amber-50/80', border: 'border-amber-100' };
             case 'info':
             default:
-                return 'bg-terracotta-500 border-terracotta-600';
+                return { text: 'text-terracotta-600', icon: 'info', bg: 'bg-terracotta-50/80', border: 'border-terracotta-100' };
         }
     };
 
-    const getIcon = () => {
-        switch (type) {
-            case 'success':
-                return 'check_circle';
-            case 'error':
-                return 'error';
-            case 'warning':
-                return 'warning';
-            case 'info':
-            default:
-                return 'info';
-        }
-    };
+    const colors = getColors();
 
     return (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[100] max-w-[90%] w-full sm:max-w-md animate-slide-down">
-            <div className={`${getTypeStyles()} text-white rounded-2xl shadow-2xl border-2 p-4 flex items-center gap-3 backdrop-blur-xl`}>
-                <span className="material-symbols-outlined fill text-2xl">{getIcon()}</span>
-                <p className="flex-1 font-medium text-sm">{message}</p>
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[100] w-[calc(100%-48px)] max-w-[400px] animate-snackbar-up">
+            <div className={`
+                ${colors.bg} ${colors.border} ${colors.text}
+                backdrop-blur-xl border shadow-xl rounded-2xl p-4 
+                flex items-center gap-3 ring-1 ring-black/5
+            `}>
+                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-white/50 flex items-center justify-center shadow-sm">
+                    <span className="material-symbols-outlined fill text-2xl">{colors.icon}</span>
+                </div>
+                <p className="flex-1 font-bold text-sm tracking-tight leading-tight">{message}</p>
                 <button
                     onClick={onClose}
-                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/20 transition-colors active:scale-95"
+                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/5 transition-colors active:scale-90"
                 >
-                    <span className="material-symbols-outlined text-lg">close</span>
+                    <span className="material-symbols-outlined text-lg opacity-50">close</span>
                 </button>
             </div>
         </div>

@@ -3,13 +3,14 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MOCK_SUGGESTIONS } from '../constants';
 import { storageService } from '../services/storageService';
-import { Trip } from '../types';
+import { Trip, Suggestion } from '../types';
 import BottomNav from '../components/BottomNav';
 import ImageUpload from '../components/ImageUpload';
 import { DEFAULT_TRIP_IMAGE } from '../constants';
 
 import Toast, { ToastType } from '../components/Toast';
 import ConfirmModal from '../components/ConfirmModal';
+import LoadingButton from '../components/LoadingButton';
 
 type ViewMode = 'grid' | 'list';
 type TabMode = 'confirmed' | 'suggestions';
@@ -24,6 +25,8 @@ const TripSuggestions: React.FC = () => {
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isAdmin, setIsAdmin] = useState(false);
 
     const [viewMode, setViewMode] = useState<ViewMode>('grid');
     const [activeTab, setActiveTab] = useState<TabMode>('confirmed');
@@ -40,16 +43,18 @@ const TripSuggestions: React.FC = () => {
     React.useEffect(() => {
         const loadTripData = async () => {
             if (id) {
-                setIsLoading(true);
+                // Background loading handled by SWR
                 const foundTrip = await storageService.getTripById(id);
                 setTrip(foundTrip);
-                setEditFormData({
-                    title: foundTrip.title,
-                    destination: foundTrip.destination,
-                    startDate: foundTrip.startDate || '',
-                    endDate: foundTrip.endDate || '',
-                    imageUrl: foundTrip.imageUrl || '',
-                });
+                if (foundTrip) {
+                    setEditFormData({
+                        title: foundTrip.title,
+                        destination: foundTrip.destination,
+                        startDate: foundTrip.startDate || '',
+                        endDate: foundTrip.endDate || '',
+                        imageUrl: foundTrip.imageUrl || '',
+                    });
+                }
 
                 const storedSuggestions = await storageService.getSuggestionsByTrip(id);
                 // Combine with mocks if it's trip ID 1 for demo purposes
@@ -58,10 +63,16 @@ const TripSuggestions: React.FC = () => {
                     : storedSuggestions;
 
                 setSuggestions(allSuggestions);
+
+                // Check if current user is admin
+                const adminStatus = await storageService.isAdmin(id);
+                setIsAdmin(adminStatus);
+
                 setIsLoading(false);
             }
         };
         loadTripData();
+        return storageService.subscribe(loadTripData);
     }, [id]);
 
     const filteredSuggestions = suggestions.filter(s => {
@@ -84,36 +95,56 @@ const TripSuggestions: React.FC = () => {
 
     const handleConfirmTrip = async () => {
         if (!trip || !id) return;
-        const updatedTrip = await storageService.updateTrip(id, { status: 'confirmed' });
-        if (updatedTrip) {
-            setTrip(updatedTrip);
-            setShowConfirmModal(false);
-            setToast({ message: 'Viagem confirmada com sucesso! 🎉', type: 'success' });
+        setIsSubmitting(true);
+        try {
+            const updatedTrip = await storageService.updateTrip(id, { status: 'confirmed' });
+            if (updatedTrip) {
+                setTrip(updatedTrip);
+                setShowConfirmModal(false);
+                setToast({ message: 'Viagem confirmada com sucesso! 🎉', type: 'success' });
+            }
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
     const handleDeleteTrip = async () => {
         if (!id) return;
-        const success = await storageService.deleteTrip(id);
-        if (success) {
-            setToast({ message: 'Viagem excluída com sucesso.', type: 'info' });
-            setTimeout(() => {
-                navigate('/dashboard');
-            }, 1000);
-        } else {
-            setToast({ message: 'Erro ao excluir viagem.', type: 'error' });
+        setIsSubmitting(true);
+        try {
+            const success = await storageService.deleteTrip(id);
+            if (success) {
+                setToast({ message: 'Viagem excluída com sucesso.', type: 'info' });
+                setTimeout(() => {
+                    navigate('/dashboard');
+                }, 1000);
+            } else {
+                setToast({ message: 'Erro ao excluir viagem.', type: 'error' });
+            }
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
     const handleConfirmSuggestion = async (suggestionId: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        const updated = await storageService.updateSuggestion(suggestionId, { status: 'confirmed' });
-        if (updated) {
-            // Refresh suggestions
-            const storedSuggestions = await storageService.getSuggestionsByTrip(id!);
-            const allSuggestions = id === '1' ? [...MOCK_SUGGESTIONS, ...storedSuggestions] : storedSuggestions;
-            setSuggestions(allSuggestions);
-            setToast({ message: 'Sugestão confirmada! ✨', type: 'success' });
+
+        // Optimistic UI Update
+        const previousSuggestions = [...suggestions];
+        setSuggestions(prev => prev.map(s =>
+            s.id === suggestionId ? { ...s, status: 'confirmed' } : s
+        ));
+        setToast({ message: 'Sugestão confirmada! ✨', type: 'success' });
+
+        try {
+            const updated = await storageService.updateSuggestion(suggestionId, { status: 'confirmed' });
+            if (!updated) {
+                throw new Error('Update failed');
+            }
+        } catch (error) {
+            // Revert on error
+            setSuggestions(previousSuggestions);
+            setToast({ message: 'Erro ao confirmar sugestão. Revertendo...', type: 'error' });
         }
     };
     const [likedSuggestions, setLikedSuggestions] = useState<Set<string>>(new Set());
@@ -124,32 +155,87 @@ const TripSuggestions: React.FC = () => {
     const [showAddParticipantForm, setShowAddParticipantForm] = useState(false);
     const [newParticipantName, setNewParticipantName] = useState('');
     const [newParticipantAvatar, setNewParticipantAvatar] = useState('');
+    const [showRemoveParticipantModal, setShowRemoveParticipantModal] = useState(false);
+    const [participantToDelete, setParticipantToDelete] = useState<{ id: string, name: string } | null>(null);
 
     const handleAddParticipant = async () => {
         if (!id || !newParticipantName.trim()) return;
-        const avatar = newParticipantAvatar.trim() || `https://picsum.photos/id/${Math.floor(Math.random() * 100)}/100/100`;
-        const newParticipant = await storageService.addParticipantToTrip(id, {
-            name: newParticipantName.trim(),
-            avatar,
-        });
-        if (newParticipant) {
-            // Refresh trip to get new participants list
-            const foundTrip = await storageService.getTripById(id);
-            setTrip(foundTrip);
-            setNewParticipantName('');
-            setNewParticipantAvatar('');
-            setShowAddParticipantForm(false);
-            setToast({ message: 'Participante adicionado! 👥', type: 'success' });
+        setIsSubmitting(true);
+        try {
+            const avatar = newParticipantAvatar.trim() || `https://ui-avatars.com/api/?name=${encodeURIComponent(newParticipantName.trim())}&background=random`;
+            const newParticipant = await storageService.addParticipantToTrip(id, {
+                name: newParticipantName.trim(),
+                avatar,
+            });
+            if (newParticipant) {
+                // Refresh trip to get new participants list
+                const foundTrip = await storageService.getTripById(id);
+                setTrip(foundTrip);
+                setNewParticipantName('');
+                setNewParticipantAvatar('');
+                setShowAddParticipantForm(false);
+                setToast({ message: 'Participante adicionado! 👥', type: 'success' });
+            }
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
     const handleRemoveParticipant = async (participantId: string) => {
-        if (!id) return;
-        const success = await storageService.removeParticipantFromTrip(participantId);
-        if (success) {
-            const foundTrip = await storageService.getTripById(id);
-            setTrip(foundTrip);
-            setToast({ message: 'Participante removido', type: 'info' });
+        if (!id || !trip) return;
+
+        const participant = trip.participants.find(p => p.id === participantId);
+        if (!participant) return;
+
+        // 1. Check if participant has expenses
+        const hasExpenses = trip.expenses?.some(e =>
+            e.paidBy === participantId || e.participants?.includes(participantId)
+        );
+
+        if (hasExpenses) {
+            setToast({
+                message: `Não é possível remover ${participant.name}: existem gastos vinculados a esta pessoa. Mescle-a com outro participante primeiro.`,
+                type: 'error'
+            });
+            return;
+        }
+
+        // 2. Check if participant has confirmed suggestions
+        const hasConfirmedSuggestions = suggestions.some(s => s.confirmedBy === participantId);
+        if (hasConfirmedSuggestions) {
+            setToast({
+                message: `Não é possível remover ${participant.name}: esta pessoa confirmou sugestões no roteiro. Mescle-a com outro participante primeiro.`,
+                type: 'error'
+            });
+            return;
+        }
+
+        // 3. Open confirmation
+        setParticipantToDelete({ id: participantId, name: participant.name });
+        setShowRemoveParticipantModal(true);
+    };
+
+    const confirmRemoveParticipant = async () => {
+        if (!id || !participantToDelete) return;
+
+        setIsSubmitting(true);
+        try {
+            const result = await storageService.removeParticipantFromTrip(participantToDelete.id);
+            if (result.success) {
+                // Force a fresh fetch to ensure UI is in sync
+                const foundTrip = await storageService.getTripById(id, true);
+                setTrip(foundTrip);
+                setShowRemoveParticipantModal(false);
+                setParticipantToDelete(null);
+                setToast({ message: 'Participante removido com sucesso.', type: 'info' });
+            } else {
+                setToast({ message: result.error || 'Erro ao remover participante.', type: 'error' });
+            }
+        } catch (error) {
+            console.error('Error in participant removal:', error);
+            setToast({ message: 'Erro ao processar a exclusão.', type: 'error' });
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -173,17 +259,39 @@ const TripSuggestions: React.FC = () => {
     const handleUpdateTrip = async () => {
         if (!trip || !id) return;
 
-        const updated = await storageService.updateTrip(id, {
-            ...editFormData,
-            dateRange: editFormData.startDate && editFormData.endDate
-                ? `${new Date(editFormData.startDate + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} - ${new Date(editFormData.endDate + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`
-                : trip.dateRange
-        });
+        setIsSubmitting(true);
+        try {
+            const updated = await storageService.updateTrip(id, {
+                ...editFormData,
+                dateRange: editFormData.startDate && editFormData.endDate
+                    ? `${new Date(editFormData.startDate + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} - ${new Date(editFormData.endDate + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`
+                    : trip.dateRange
+            });
 
-        if (updated) {
-            setTrip(updated);
-            setSettingsView('main');
-            setToast({ message: 'Atualizado com sucesso!', type: 'success' });
+            if (updated) {
+                setTrip(updated);
+                setSettingsView('main');
+                setToast({ message: 'Atualizado com sucesso!', type: 'success' });
+            }
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handlePromoteToAdmin = async (participantId: string) => {
+        if (!id) return;
+        setIsSubmitting(true);
+        try {
+            const success = await storageService.updateParticipantRole(participantId, 'admin');
+            if (success) {
+                const foundTrip = await storageService.getTripById(id, true);
+                setTrip(foundTrip);
+                setToast({ message: 'Participante promovido a Administrador! 🛡️', type: 'success' });
+            } else {
+                setToast({ message: 'Erro ao promover participante.', type: 'error' });
+            }
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -259,6 +367,17 @@ const TripSuggestions: React.FC = () => {
                 />
             )}
 
+            {/* Remove Participant Confirm Modal */}
+            <ConfirmModal
+                isOpen={showRemoveParticipantModal}
+                title="Remover Participante?"
+                message={`Deseja realmente remover ${participantToDelete?.name}? Todos os registros individuais vinculados a esta pessoa serão perdidos e ela não aparecerá mais nos cálculos da viagem.`}
+                confirmLabel="Remover Agora"
+                onConfirm={confirmRemoveParticipant}
+                onCancel={() => { setShowRemoveParticipantModal(false); setParticipantToDelete(null); }}
+                isLoading={isSubmitting}
+            />
+
             {/* Confirm Modal */}
             <ConfirmModal
                 isOpen={showConfirmModal}
@@ -269,6 +388,7 @@ const TripSuggestions: React.FC = () => {
                 onConfirm={handleConfirmTrip}
                 onCancel={() => setShowConfirmModal(false)}
                 type="info"
+                isLoading={isSubmitting}
             />
 
             <ConfirmModal
@@ -280,6 +400,7 @@ const TripSuggestions: React.FC = () => {
                 onConfirm={handleDeleteTrip}
                 onCancel={() => setShowDeleteModal(false)}
                 type="danger"
+                isLoading={isSubmitting}
             />
 
             {/* Header */}
@@ -345,15 +466,18 @@ const TripSuggestions: React.FC = () => {
                             </button>
                         </div>
 
-                        {/* Share Trip Button */}
-                        <button
-                            onClick={() => trip.status === 'draft' ? setToast({ message: 'Confirme a viagem para compartilhar', type: 'warning' }) : setShowShareModal(true)}
-                            className={`w-10 h-10 flex items-center justify-center bg-white rounded-full shadow-sm active:scale-95 transition-transform ${trip.status === 'draft' ? 'opacity-50' : ''}`}
-                        >
-                            <span className="material-symbols-outlined text-sunset-dark text-2xl">share</span>
-                        </button>
+                        {/* Share Trip Button (Admin Only) */}
+                        {isAdmin && (
+                            <button
+                                onClick={() => trip.status === 'draft' ? setToast({ message: 'Confirme a viagem para compartilhar', type: 'warning' }) : setShowShareModal(true)}
+                                className={`w-10 h-10 flex items-center justify-center bg-white rounded-full shadow-sm active:scale-95 transition-transform ${trip.status === 'draft' ? 'opacity-50' : ''}`}
+                            >
+                                <span className="material-symbols-outlined text-sunset-dark text-2xl">share</span>
+                            </button>
+                        )}
 
-                        {/* Settings Button */}
+                        {/* Settings Button (Admin Only for core settings, but everyone might need notifications) */}
+                        {/* We'll show for everyone but filter options inside */}
                         <button
                             onClick={() => setShowSettingsModal(true)}
                             className="w-10 h-10 flex items-center justify-center bg-white rounded-full shadow-sm active:scale-95 transition-transform"
@@ -411,12 +535,12 @@ const TripSuggestions: React.FC = () => {
                                     >
                                         Editar
                                     </button>
-                                    <button
+                                    <LoadingButton
                                         onClick={() => setShowConfirmModal(true)}
-                                        className="h-8 px-3 bg-amber-500 text-white text-[10px] font-bold rounded-lg shadow-sm shadow-amber-200 active:scale-95 transition-all"
+                                        className="h-8 px-3 bg-amber-500 text-white text-[10px] font-bold rounded-lg shadow-sm shadow-amber-200"
                                     >
                                         Confirmar
-                                    </button>
+                                    </LoadingButton>
                                 </div>
                             </div>
                         </div>
@@ -758,17 +882,40 @@ const TripSuggestions: React.FC = () => {
                                                     alt={participant.name}
                                                     className="w-12 h-12 rounded-full border-2 border-white shadow-sm object-cover"
                                                 />
-                                                <div>
-                                                    <p className="font-bold text-sunset-dark">{participant.name}</p>
-                                                    <p className="text-xs text-sunset-muted">Membro da viagem</p>
+                                                <div className="flex flex-col">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <p className="font-bold text-sunset-dark">{participant.name}</p>
+                                                        {participant.role === 'admin' && (
+                                                            <span className="px-1.5 py-0.5 rounded-md bg-terracotta-100 text-terracotta-600 text-[10px] font-bold uppercase tracking-wider">
+                                                                Admin
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-xs text-sunset-muted">
+                                                        {participant.role === 'admin' ? 'Administrador da viagem' : 'Membro da viagem'}
+                                                    </p>
                                                 </div>
                                             </div>
-                                            <button
-                                                onClick={() => handleRemoveParticipant(participant.id)}
-                                                className="w-9 h-9 flex items-center justify-center rounded-full border border-red-200 text-red-500 active:scale-95 transition-transform hover:bg-red-50"
-                                            >
-                                                <span className="material-symbols-outlined text-lg">person_remove</span>
-                                            </button>
+                                            <div className="flex items-center gap-2">
+                                                {isAdmin && participant.role === 'member' && (
+                                                    <button
+                                                        onClick={() => handlePromoteToAdmin(participant.id)}
+                                                        title="Promover a Administrador"
+                                                        className="w-9 h-9 flex items-center justify-center rounded-full border border-terracotta-100 text-terracotta-600 active:scale-95 transition-transform hover:bg-terracotta-50"
+                                                    >
+                                                        <span className="material-symbols-outlined text-lg">shield_person</span>
+                                                    </button>
+                                                )}
+                                                {isAdmin && (
+                                                    <button
+                                                        onClick={() => handleRemoveParticipant(participant.id)}
+                                                        title="Remover Participante"
+                                                        className="w-9 h-9 flex items-center justify-center rounded-full border border-red-200 text-red-500 active:scale-95 transition-transform hover:bg-red-50"
+                                                    >
+                                                        <span className="material-symbols-outlined text-lg">person_remove</span>
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                     ))}
                                     {(!trip.participants || trip.participants.length === 0) && (
@@ -780,51 +927,55 @@ const TripSuggestions: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Add Participant Form or Button */}
-                            <div className="sticky bottom-0 bg-white border-t border-terracotta-100 px-6 py-4">
-                                {showAddParticipantForm ? (
-                                    <div className="space-y-3">
-                                        <input
-                                            type="text"
-                                            value={newParticipantName}
-                                            onChange={(e) => setNewParticipantName(e.target.value)}
-                                            placeholder="Nome do participante *"
-                                            className="w-full h-12 px-4 bg-warm-cream border border-terracotta-100 rounded-xl focus:ring-2 focus:ring-terracotta-400 outline-none transition-all"
-                                        />
-                                        <input
-                                            type="text"
-                                            value={newParticipantAvatar}
-                                            onChange={(e) => setNewParticipantAvatar(e.target.value)}
-                                            placeholder="URL da foto (opcional)"
-                                            className="w-full h-12 px-4 bg-warm-cream border border-terracotta-100 rounded-xl focus:ring-2 focus:ring-terracotta-400 outline-none transition-all"
-                                        />
-                                        <div className="flex gap-3">
-                                            <button
-                                                onClick={() => setShowAddParticipantForm(false)}
-                                                className="flex-1 h-12 bg-white border border-terracotta-100 text-sunset-muted font-bold rounded-xl active:scale-95 transition-all"
-                                            >
-                                                Cancelar
-                                            </button>
-                                            <button
-                                                onClick={handleAddParticipant}
-                                                disabled={!newParticipantName.trim()}
-                                                className="flex-[2] h-12 bg-terracotta-500 text-white font-bold rounded-xl shadow-lg shadow-terracotta-500/30 active:scale-[0.98] transition-transform flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                                            >
-                                                <span className="material-symbols-outlined">check</span>
-                                                <span>Adicionar</span>
-                                            </button>
+                            {/* Add Participant Form or Button (Admin Only) */}
+                            {isAdmin && (
+                                <div className="sticky bottom-0 bg-white border-t border-terracotta-100 px-6 py-4">
+                                    {showAddParticipantForm ? (
+                                        <div className="space-y-3">
+                                            <input
+                                                type="text"
+                                                value={newParticipantName}
+                                                onChange={(e) => setNewParticipantName(e.target.value)}
+                                                placeholder="Nome do participante *"
+                                                className="w-full h-12 px-4 bg-warm-cream border border-terracotta-100 rounded-xl focus:ring-2 focus:ring-terracotta-400 outline-none transition-all"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={newParticipantAvatar}
+                                                onChange={(e) => setNewParticipantAvatar(e.target.value)}
+                                                placeholder="URL da foto (opcional)"
+                                                className="w-full h-12 px-4 bg-warm-cream border border-terracotta-100 rounded-xl focus:ring-2 focus:ring-terracotta-400 outline-none transition-all"
+                                            />
+                                            <div className="flex gap-3">
+                                                <button
+                                                    onClick={() => setShowAddParticipantForm(false)}
+                                                    className="flex-1 h-12 bg-white border border-terracotta-100 text-sunset-muted font-bold rounded-xl active:scale-95 transition-all"
+                                                >
+                                                    Cancelar
+                                                </button>
+                                                <LoadingButton
+                                                    onClick={handleAddParticipant}
+                                                    isLoading={isSubmitting}
+                                                    loadingText="Adicionando..."
+                                                    disabled={!newParticipantName.trim()}
+                                                    className="flex-[2] h-12 bg-terracotta-500 text-white font-bold rounded-xl shadow-lg shadow-terracotta-500/30"
+                                                >
+                                                    <span className="material-symbols-outlined">check</span>
+                                                    <span>Adicionar</span>
+                                                </LoadingButton>
+                                            </div>
                                         </div>
-                                    </div>
-                                ) : (
-                                    <button
-                                        onClick={() => setShowAddParticipantForm(true)}
-                                        className="w-full h-12 bg-terracotta-500 text-white font-bold rounded-2xl shadow-lg shadow-terracotta-500/30 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
-                                    >
-                                        <span className="material-symbols-outlined">person_add</span>
-                                        <span>Adicionar Participante</span>
-                                    </button>
-                                )}
-                            </div>
+                                    ) : (
+                                        <button
+                                            onClick={() => setShowAddParticipantForm(true)}
+                                            className="w-full h-12 bg-terracotta-500 text-white font-bold rounded-2xl shadow-lg shadow-terracotta-500/30 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
+                                        >
+                                            <span className="material-symbols-outlined">person_add</span>
+                                            <span>Adicionar Participante</span>
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                 )
@@ -992,37 +1143,41 @@ const TripSuggestions: React.FC = () => {
                                 {/* MAIN MENU */}
                                 {settingsView === 'main' && (
                                     <div className="space-y-3">
-                                        <button
-                                            onClick={() => setSettingsView('edit')}
-                                            className="w-full flex items-center justify-between p-4 bg-warm-cream rounded-2xl active:scale-[0.98] transition-transform"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 bg-terracotta-100 rounded-full flex items-center justify-center">
-                                                    <span className="material-symbols-outlined text-terracotta-600">edit</span>
-                                                </div>
-                                                <div className="text-left">
-                                                    <p className="font-bold text-sunset-dark">Editar Informações</p>
-                                                    <p className="text-xs text-sunset-muted">Nome, datas e destino</p>
-                                                </div>
-                                            </div>
-                                            <span className="material-symbols-outlined text-sunset-muted">chevron_right</span>
-                                        </button>
+                                        {isAdmin && (
+                                            <>
+                                                <button
+                                                    onClick={() => setSettingsView('edit')}
+                                                    className="w-full flex items-center justify-between p-4 bg-warm-cream rounded-2xl active:scale-[0.98] transition-transform"
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 bg-terracotta-100 rounded-full flex items-center justify-center">
+                                                            <span className="material-symbols-outlined text-terracotta-600">edit</span>
+                                                        </div>
+                                                        <div className="text-left">
+                                                            <p className="font-bold text-sunset-dark">Editar Informações</p>
+                                                            <p className="text-xs text-sunset-muted">Nome, datas e destino</p>
+                                                        </div>
+                                                    </div>
+                                                    <span className="material-symbols-outlined text-sunset-muted">chevron_right</span>
+                                                </button>
 
-                                        <button
-                                            onClick={() => setSettingsView('photo')}
-                                            className="w-full flex items-center justify-between p-4 bg-warm-cream rounded-2xl active:scale-[0.98] transition-transform"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                                                    <span className="material-symbols-outlined text-blue-600">image</span>
-                                                </div>
-                                                <div className="text-left">
-                                                    <p className="font-bold text-sunset-dark">Alterar Foto de Capa</p>
-                                                    <p className="text-xs text-sunset-muted">Escolher nova imagem</p>
-                                                </div>
-                                            </div>
-                                            <span className="material-symbols-outlined text-sunset-muted">chevron_right</span>
-                                        </button>
+                                                <button
+                                                    onClick={() => setSettingsView('photo')}
+                                                    className="w-full flex items-center justify-between p-4 bg-warm-cream rounded-2xl active:scale-[0.98] transition-transform"
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                                                            <span className="material-symbols-outlined text-blue-600">image</span>
+                                                        </div>
+                                                        <div className="text-left">
+                                                            <p className="font-bold text-sunset-dark">Alterar Foto de Capa</p>
+                                                            <p className="text-xs text-sunset-muted">Escolher nova imagem</p>
+                                                        </div>
+                                                    </div>
+                                                    <span className="material-symbols-outlined text-sunset-muted">chevron_right</span>
+                                                </button>
+                                            </>
+                                        )}
 
                                         <button
                                             onClick={() => setSettingsView('notifications')}
@@ -1040,39 +1195,43 @@ const TripSuggestions: React.FC = () => {
                                             <span className="material-symbols-outlined text-sunset-muted">chevron_right</span>
                                         </button>
 
-                                        <button
-                                            onClick={() => setSettingsView('privacy')}
-                                            className="w-full flex items-center justify-between p-4 bg-warm-cream rounded-2xl active:scale-[0.98] transition-transform"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
-                                                    <span className="material-symbols-outlined text-orange-600">lock</span>
-                                                </div>
-                                                <div className="text-left">
-                                                    <p className="font-bold text-sunset-dark">Privacidade</p>
-                                                    <p className="text-xs text-sunset-muted">Quem pode ver e participar</p>
-                                                </div>
-                                            </div>
-                                            <span className="material-symbols-outlined text-sunset-muted">chevron_right</span>
-                                        </button>
-
-                                        <div className="pt-4 border-t border-terracotta-100">
+                                        {isAdmin && (
                                             <button
-                                                onClick={() => { setShowSettingsModal(false); setShowDeleteModal(true); }}
-                                                className="w-full flex items-center justify-between p-4 bg-red-50 border border-red-200 rounded-2xl active:scale-[0.98] transition-transform"
+                                                onClick={() => setSettingsView('privacy')}
+                                                className="w-full flex items-center justify-between p-4 bg-warm-cream rounded-2xl active:scale-[0.98] transition-transform"
                                             >
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-                                                        <span className="material-symbols-outlined text-red-600">delete</span>
+                                                    <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
+                                                        <span className="material-symbols-outlined text-orange-600">lock</span>
                                                     </div>
                                                     <div className="text-left">
-                                                        <p className="font-bold text-red-600">Excluir Viagem</p>
-                                                        <p className="text-xs text-red-500">Ação permanente</p>
+                                                        <p className="font-bold text-sunset-dark">Privacidade</p>
+                                                        <p className="text-xs text-sunset-muted">Quem pode ver e participar</p>
                                                     </div>
                                                 </div>
-                                                <span className="material-symbols-outlined text-red-500">chevron_right</span>
+                                                <span className="material-symbols-outlined text-sunset-muted">chevron_right</span>
                                             </button>
-                                        </div>
+                                        )}
+
+                                        {isAdmin && (
+                                            <div className="pt-4 border-t border-terracotta-100">
+                                                <button
+                                                    onClick={() => { setShowSettingsModal(false); setShowDeleteModal(true); }}
+                                                    className="w-full flex items-center justify-between p-4 bg-red-50 border border-red-200 rounded-2xl active:scale-[0.98] transition-transform"
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                                                            <span className="material-symbols-outlined text-red-600">delete</span>
+                                                        </div>
+                                                        <div className="text-left">
+                                                            <p className="font-bold text-red-600">Excluir Viagem</p>
+                                                            <p className="text-xs text-red-500">Ação permanente</p>
+                                                        </div>
+                                                    </div>
+                                                    <span className="material-symbols-outlined text-red-500">chevron_right</span>
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 
@@ -1117,12 +1276,14 @@ const TripSuggestions: React.FC = () => {
                                                 />
                                             </div>
                                         </div>
-                                        <button
+                                        <LoadingButton
                                             onClick={handleUpdateTrip}
-                                            className="w-full h-14 bg-terracotta-500 text-white font-bold rounded-2xl shadow-lg mt-4 active:scale-95 transition-transform"
+                                            isLoading={isSubmitting}
+                                            loadingText="Salvando..."
+                                            className="w-full h-14 bg-terracotta-500 text-white font-bold rounded-2xl shadow-lg mt-4"
                                         >
                                             Salvar Alterações
-                                        </button>
+                                        </LoadingButton>
                                     </div>
                                 )}
 
@@ -1139,12 +1300,14 @@ const TripSuggestions: React.FC = () => {
                                             placeholder="Selecionar foto de capa"
                                             className="h-48"
                                         />
-                                        <button
+                                        <LoadingButton
                                             onClick={handleUpdateTrip}
-                                            className="w-full h-14 bg-terracotta-500 text-white font-bold rounded-2xl shadow-lg mt-2 active:scale-95 transition-transform"
+                                            isLoading={isSubmitting}
+                                            loadingText="Salvando..."
+                                            className="w-full h-14 bg-terracotta-500 text-white font-bold rounded-2xl shadow-lg mt-2"
                                         >
                                             Confirmar Nova Foto
-                                        </button>
+                                        </LoadingButton>
                                     </div>
                                 )}
 

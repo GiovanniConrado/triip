@@ -32,6 +32,13 @@ const EditTrip: React.FC = () => {
             if (id) {
                 const foundTrip = await storageService.getTripById(id);
                 if (foundTrip) {
+                    // Check if current user is admin
+                    const adminStatus = await storageService.isAdmin(id);
+                    if (!adminStatus) {
+                        navigate(`/trip/${id}`);
+                        return;
+                    }
+
                     setTrip(foundTrip);
                     setFormData({
                         title: foundTrip.title,

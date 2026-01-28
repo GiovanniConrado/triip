@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { storageService } from '../services/storageService';
-import { ViewMode, DashboardTab, Trip } from '../types';
+import { ViewMode, DashboardTab, TripSummary } from '../types';
 import TripCard from '../components/TripCard';
 import TripListCard from '../components/TripListCard';
 import Sidebar from '../components/Sidebar';
@@ -14,20 +14,25 @@ const Dashboard: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [activeTab, setActiveTab] = useState<DashboardTab>('Confirmadas');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [trips, setTrips] = useState<Trip[]>([]);
+  const [trips, setTrips] = useState<TripSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
     loadTrips();
+    return storageService.subscribe(loadTrips);
   }, [activeTab]);
 
   const loadTrips = async () => {
-    setIsLoading(true);
+    // Only show loading skeletons if we don't have any trips yet
+    if (trips.length === 0) {
+      setIsLoading(true);
+    }
+
     try {
-      const allTrips = await storageService.getTrips();
-      let filteredTrips: Trip[] = [];
+      const allTrips = await storageService.getTripsSummary();
+      let filteredTrips: TripSummary[] = [];
 
       switch (activeTab) {
         case 'Confirmadas':

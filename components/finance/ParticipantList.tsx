@@ -7,6 +7,7 @@ interface ParticipantListProps {
     onAddExternal: () => void;
     onRemoveParticipant: (participantId: string) => void;
     onMergeParticipant?: (participant: Participant) => void;
+    isAdmin?: boolean;
 }
 
 const ParticipantList: React.FC<ParticipantListProps> = ({
@@ -15,6 +16,7 @@ const ParticipantList: React.FC<ParticipantListProps> = ({
     onAddExternal,
     onRemoveParticipant,
     onMergeParticipant,
+    isAdmin = false,
 }) => {
     return (
         <div className="space-y-4">
@@ -23,13 +25,15 @@ const ParticipantList: React.FC<ParticipantListProps> = ({
                     <span className="material-symbols-outlined text-sm">group</span>
                     Participantes da viagem
                 </h3>
-                <button
-                    onClick={onAddExternal}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-terracotta-500 text-white text-xs font-bold rounded-full active:scale-95 transition-all"
-                >
-                    <span className="material-symbols-outlined text-sm">person_add</span>
-                    Adicionar
-                </button>
+                {isAdmin && (
+                    <button
+                        onClick={onAddExternal}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-terracotta-500 text-white text-xs font-bold rounded-full active:scale-95 transition-all"
+                    >
+                        <span className="material-symbols-outlined text-sm">person_add</span>
+                        Adicionar
+                    </button>
+                )}
             </div>
 
             <div className="space-y-2">
@@ -50,6 +54,9 @@ const ParticipantList: React.FC<ParticipantListProps> = ({
                             <div className="flex-1">
                                 <div className="flex items-center gap-2">
                                     <p className="font-bold text-sunset-dark">{p.name}</p>
+                                    {p.role === 'admin' && (
+                                        <span className="bg-terracotta-100 text-terracotta-600 text-[8px] font-bold px-1.5 py-0.5 rounded-full">ADMIN</span>
+                                    )}
                                     {p.isExternal && (
                                         <span className="bg-amber-100 text-amber-700 text-[8px] font-bold px-1.5 py-0.5 rounded-full">EXTERNO</span>
                                     )}
@@ -58,7 +65,7 @@ const ParticipantList: React.FC<ParticipantListProps> = ({
                                     {participantExpenses.length} despesas • R$ {totalPaid.toFixed(2)} pagos
                                 </p>
                             </div>
-                            {p.isExternal && (
+                            {isAdmin && p.isExternal && (
                                 <div className="flex items-center gap-1">
                                     <button
                                         onClick={() => onMergeParticipant?.(p)}

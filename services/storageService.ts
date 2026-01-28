@@ -1,6 +1,6 @@
 // VERSION_TIMESTAMP: 2026-01-27T17:08:00
 import { supabase } from './supabaseClient';
-import { Trip, Expense, Suggestion, TripStatus, Participant, SuggestionComment } from '../types';
+import { Trip, Expense, Suggestion, TripStatus, Participant, SuggestionComment, TripSummary } from '../types';
 import { profileService } from './profileService';
 
 // O storageService agora usará o Supabase em vez do localStorage.
@@ -17,7 +17,8 @@ const mapTripFromSupabase = (data: any): Trip => ({
     participants: data.participants?.map((p: any) => ({
         ...p,
         isExternal: p.is_external,
-        user_id: p.user_id
+        user_id: p.user_id,
+        role: p.role || 'member'
     })) || [],
     expenses: data.expenses?.map(mapExpenseFromSupabase) || []
 });
@@ -66,7 +67,8 @@ const mapExpenseToSupabase = (expense: Partial<Expense>) => {
 
 const mapParticipantFromSupabase = (data: any): Participant => ({
     ...data,
-    isExternal: data.is_external
+    isExternal: data.is_external,
+    role: data.role || 'member'
 });
 
 const mapSuggestionFromSupabase = (data: any): Suggestion => ({
@@ -107,17 +109,29 @@ const mapSuggestionToSupabase = (suggestion: Partial<Suggestion>) => {
 const cache = {
     user: null as any,
     trips: null as Trip[] | null,
+    tripsSummary: null as TripSummary[] | null,
     tripDetails: {} as Record<string, Trip>,
     expenses: {} as Record<string, Expense[]>,
     suggestions: {} as Record<string, Suggestion[]>,
+    lastFetch: {} as Record<string, number>, // Timestamps
 };
+
+// Listeners for cache updates
+const listeners: Set<() => void> = new Set();
+const subscribe = (fn: () => void) => {
+    listeners.add(fn);
+    return () => listeners.delete(fn);
+};
+const notify = () => listeners.forEach(fn => fn());
 
 // Limpa todo o cache
 const clearCache = () => {
     cache.trips = null;
+    cache.tripsSummary = null;
     cache.tripDetails = {};
     cache.expenses = {};
     cache.suggestions = {};
+    notify();
 };
 
 // Helpers para as seleções de colunas (Usando * para máxima compatibilidade)
@@ -128,6 +142,7 @@ const INSTALLMENT_FIELDS = '*';
 const SUGGESTION_FIELDS = '*';
 
 export const storageService = {
+    subscribe,
     // Auth helper com cache
     getCurrentUser: async () => {
         if (cache.user) return cache.user;
@@ -137,72 +152,154 @@ export const storageService = {
     },
 
     // Trips
-    getTrips: async (): Promise<Trip[]> => {
+    getTripsSummary: async (forceRefresh = false): Promise<TripSummary[]> => {
         const user = await storageService.getCurrentUser();
         if (!user) return [];
 
-        if (cache.trips) return cache.trips;
+        const isStale = !cache.lastFetch['tripsSummary'] || (Date.now() - cache.lastFetch['tripsSummary'] > 60000); // 1 min stale
 
-        // BUSCA TRIPS ONDE O USUÁRIO É DONO OU PARTICIPANTE
-        const { data: tripIdsData, error: participantError } = await supabase
-            .from('participants')
-            .select('trip_id')
-            .eq('user_id', user.id);
-
-        if (participantError) {
-            console.error('Error fetching participant trips:', participantError);
+        if (cache.tripsSummary && !forceRefresh && !isStale) {
+            return cache.tripsSummary;
         }
 
-        const tripIds = (tripIdsData || []).map(p => p.trip_id);
+        const fetchPromise = (async () => {
+            // Get trips where user is participating (using the new secure function implicitly or directly)
+            const { data: tripIdsData } = await supabase
+                .from('participants')
+                .select('trip_id')
+                .eq('user_id', user.id);
 
-        const { data, error } = await supabase
-            .from('trips')
-            .select(`
-                *,
-                participants (*),
-                expenses (
-                    *,
-                    installments (*),
-                    expense_division (participant_id)
-                )
-            `)
-            .or(`user_id.eq.${user.id},id.in.(${tripIds.length > 0 ? tripIds.join(',') : '00000000-0000-0000-0000-000000000000'})`);
+            const tripIds = (tripIdsData || []).map(p => p.trip_id);
 
-        if (error) {
-            console.error('Error fetching trips:', error);
-            return [];
-        }
+            const { data, error } = await supabase
+                .from('trips')
+                .select(`
+                    id, title, destination, start_date, end_date, date_range, image_url, status,
+                    participants (id, name, avatar),
+                    expenses (amount)
+                `)
+                .or(`user_id.eq.${user.id},id.in.(${tripIds.length > 0 ? tripIds.join(',') : '00000000-0000-0000-0000-000000000000'})`)
+                .order('start_date', { ascending: true });
 
-        const mappedTrips = data.map(mapTripFromSupabase);
-        cache.trips = mappedTrips;
-        return mappedTrips;
+            if (error) {
+                console.error('Error fetching trips summary:', error);
+                return cache.tripsSummary || [];
+            }
+
+            const mappedTrips: TripSummary[] = data.map((t: any) => ({
+                id: t.id,
+                title: t.title,
+                destination: t.destination,
+                startDate: t.start_date,
+                endDate: t.end_date,
+                dateRange: t.date_range,
+                imageUrl: t.image_url,
+                status: t.status,
+                participants: t.participants || [],
+                totalSpent: (t.expenses || []).reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
+            }));
+
+            cache.tripsSummary = mappedTrips;
+            cache.lastFetch['tripsSummary'] = Date.now();
+            notify();
+            return mappedTrips;
+        })();
+
+        if (cache.tripsSummary && !forceRefresh) return cache.tripsSummary;
+        return fetchPromise;
     },
 
-    getTripById: async (id: string): Promise<Trip | null> => {
-        if (cache.tripDetails[id]) return cache.tripDetails[id];
+    getTrips: async (forceRefresh = false): Promise<Trip[]> => {
+        const user = await storageService.getCurrentUser();
+        if (!user) return [];
 
-        const { data, error } = await supabase
-            .from('trips')
-            .select(`
-                *,
-                participants (*),
-                expenses (
-                    *,
-                    installments (*),
-                    expense_division (participant_id)
-                )
-            `)
-            .eq('id', id)
-            .single();
+        const isStale = !cache.lastFetch['trips'] || (Date.now() - cache.lastFetch['trips'] > 30000); // 30s stale
 
-        if (error) {
-            console.error('Error fetching trip by id:', error);
-            return null;
+        if (cache.trips && !forceRefresh && !isStale) {
+            return cache.trips;
         }
 
-        const mappedTrip = mapTripFromSupabase(data);
-        cache.tripDetails[id] = mappedTrip;
-        return mappedTrip;
+        // Background update if we have cache
+        const fetchPromise = (async () => {
+            // BUSCA TRIPS ONDE O USUÁRIO É DONO OU PARTICIPANTE
+            const { data: tripIdsData, error: participantError } = await supabase
+                .from('participants')
+                .select('trip_id')
+                .eq('user_id', user.id);
+
+            const tripIds = (tripIdsData || []).map(p => p.trip_id);
+
+            const { data, error } = await supabase
+                .from('trips')
+                .select(`
+                    *,
+                    participants (*),
+                    expenses (
+                        *,
+                        installments (*),
+                        expense_division (participant_id)
+                    )
+                `)
+                .or(`user_id.eq.${user.id},id.in.(${tripIds.length > 0 ? tripIds.join(',') : '00000000-0000-0000-0000-000000000000'})`);
+
+            if (error) {
+                console.error('Error fetching trips:', error);
+                return cache.trips || [];
+            }
+
+            const mappedTrips = data.map(mapTripFromSupabase);
+            cache.trips = mappedTrips;
+            cache.lastFetch['trips'] = Date.now();
+            notify();
+            return mappedTrips;
+        })();
+
+        if (cache.trips && !forceRefresh) {
+            return cache.trips;
+        }
+
+        return fetchPromise;
+    },
+
+    getTripById: async (id: string, forceRefresh = false): Promise<Trip | null> => {
+        const isStale = !cache.lastFetch[`trip_${id}`] || (Date.now() - cache.lastFetch[`trip_${id}`] > 30000);
+
+        if (cache.tripDetails[id] && !forceRefresh && !isStale) {
+            return cache.tripDetails[id];
+        }
+
+        const fetchPromise = (async () => {
+            const { data, error } = await supabase
+                .from('trips')
+                .select(`
+                    *,
+                    participants (*),
+                    expenses (
+                        *,
+                        installments (*),
+                        expense_division (participant_id)
+                    )
+                `)
+                .eq('id', id)
+                .single();
+
+            if (error) {
+                console.error('Error fetching trip by id:', error);
+                return cache.tripDetails[id] || null;
+            }
+
+            const mappedTrip = mapTripFromSupabase(data);
+            cache.tripDetails[id] = mappedTrip;
+            cache.lastFetch[`trip_${id}`] = Date.now();
+            notify();
+            return mappedTrip;
+        })();
+
+        if (cache.tripDetails[id] && !forceRefresh) {
+            return cache.tripDetails[id];
+        }
+
+        return fetchPromise;
     },
 
     createTrip: async (tripData: any): Promise<Trip | null> => {
@@ -235,7 +332,8 @@ export const storageService = {
                     email: user.email,
                     avatar: profile?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile?.full_name || 'Eu')}&background=random`,
                     is_external: false,
-                    user_id: user.id
+                    user_id: user.id,
+                    role: 'admin'
                 }]);
         } catch (err) {
             console.error('Failed to add owner as participant:', err);
@@ -281,26 +379,40 @@ export const storageService = {
     },
 
     // Expenses
-    getExpensesByTrip: async (tripId: string): Promise<Expense[]> => {
-        if (cache.expenses[tripId]) return cache.expenses[tripId];
+    getExpensesByTrip: async (tripId: string, forceRefresh = false): Promise<Expense[]> => {
+        const isStale = !cache.lastFetch[`expenses_${tripId}`] || (Date.now() - cache.lastFetch[`expenses_${tripId}`] > 30000);
 
-        const { data, error } = await supabase
-            .from('expenses')
-            .select(`
-                *,
-                installments (*),
-                expense_division (participant_id)
-            `)
-            .eq('trip_id', tripId);
-
-        if (error) {
-            console.error('Error fetching expenses:', error);
-            return [];
+        if (cache.expenses[tripId] && !forceRefresh && !isStale) {
+            return cache.expenses[tripId];
         }
 
-        const mappedExpenses = data.map(mapExpenseFromSupabase);
-        cache.expenses[tripId] = mappedExpenses;
-        return mappedExpenses;
+        const fetchPromise = (async () => {
+            const { data, error } = await supabase
+                .from('expenses')
+                .select(`
+                    *,
+                    installments (*),
+                    expense_division (participant_id)
+                `)
+                .eq('trip_id', tripId);
+
+            if (error) {
+                console.error('Error fetching expenses:', error);
+                return cache.expenses[tripId] || [];
+            }
+
+            const mappedExpenses = data.map(mapExpenseFromSupabase);
+            cache.expenses[tripId] = mappedExpenses;
+            cache.lastFetch[`expenses_${tripId}`] = Date.now();
+            notify();
+            return mappedExpenses;
+        })();
+
+        if (cache.expenses[tripId] && !forceRefresh) {
+            return cache.expenses[tripId];
+        }
+
+        return fetchPromise;
     },
 
     createExpense: async (expenseData: Omit<Expense, 'id'>): Promise<Expense | null> => {
@@ -424,25 +536,42 @@ export const storageService = {
     },
 
     // Suggestions
-    getSuggestionsByTrip: async (tripId: string): Promise<Suggestion[]> => {
-        if (cache.suggestions[tripId]) return cache.suggestions[tripId];
+    getSuggestionsByTrip: async (tripId: string, forceRefresh = false): Promise<Suggestion[]> => {
+        const isStale = !cache.lastFetch[`suggestions_${tripId}`] || (Date.now() - cache.lastFetch[`suggestions_${tripId}`] > 30000);
 
-        const { data, error } = await supabase
-            .from('suggestions')
-            .select(`
-                *,
-                suggestion_comments(*)
-            `)
-            .eq('trip_id', tripId);
-
-        if (error) {
-            console.error('Error fetching suggestions:', error);
-            return [];
+        if (cache.suggestions[tripId] && !forceRefresh && !isStale) {
+            return cache.suggestions[tripId];
         }
 
-        const mappedSuggestions = data.map(mapSuggestionFromSupabase);
-        cache.suggestions[tripId] = mappedSuggestions;
-        return mappedSuggestions;
+        const fetchPromise = (async () => {
+            const { data, error } = await supabase
+                .from('suggestions')
+                .select(`
+                    *,
+                    suggestion_comments (
+                        *,
+                        profiles (*)
+                    )
+                `)
+                .eq('trip_id', tripId);
+
+            if (error) {
+                console.error('Error fetching suggestions:', error);
+                return cache.suggestions[tripId] || [];
+            }
+
+            const mappedSuggestions = data.map(mapSuggestionFromSupabase);
+            cache.suggestions[tripId] = mappedSuggestions;
+            cache.lastFetch[`suggestions_${tripId}`] = Date.now();
+            notify();
+            return mappedSuggestions;
+        })();
+
+        if (cache.suggestions[tripId] && !forceRefresh) {
+            return cache.suggestions[tripId];
+        }
+
+        return fetchPromise;
     },
 
     createSuggestion: async (suggestionData: Omit<Suggestion, 'id'>): Promise<Suggestion | null> => {
@@ -504,7 +633,8 @@ export const storageService = {
                 name: participant.name,
                 email: participant.email,
                 avatar: participant.avatar,
-                is_external: participant.isExternal || false
+                is_external: participant.isExternal || false,
+                role: participant.role || 'member'
             }])
             .select()
             .single();
@@ -519,19 +649,25 @@ export const storageService = {
         return mapParticipantFromSupabase(data);
     },
 
-    removeParticipantFromTrip: async (participantId: string): Promise<boolean> => {
-        const { error } = await supabase
+    removeParticipantFromTrip: async (participantId: string): Promise<{ success: boolean; error?: string }> => {
+        const { error, count } = await supabase
             .from('participants')
-            .delete()
+            .delete({ count: 'exact' })
             .eq('id', participantId);
 
         if (error) {
             console.error('Error removing participant:', error);
-            return false;
+            // Translate weird Postgres errors if possible, or return generic
+            return { success: false, error: 'Erro de banco de dados: ' + error.message };
+        }
+
+        if (count === 0) {
+            console.error('No participant deleted. Possible RLS restriction.');
+            return { success: false, error: 'Não foi possível excluir. Verifique se você é Admin e se o SQL de permissão (RLS) foi executado.' };
         }
 
         clearCache();
-        return true;
+        return { success: true };
     },
 
     // Comments
@@ -588,7 +724,8 @@ export const storageService = {
                 name: profile?.full_name || user.email?.split('@')[0] || 'Novo Viajante',
                 email: user.email,
                 avatar: profile?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile?.full_name || 'EU')}&background=random`,
-                is_external: false
+                is_external: false,
+                role: 'member'
             }]);
 
         if (error) {
@@ -645,7 +782,25 @@ export const storageService = {
             }
         }
 
-        // 3. Delete the external participant
+        // 3. Update suggestions where the participant was the confirmer
+        const { error: suggestionError } = await supabase
+            .from('suggestions')
+            .update({ confirmed_by: toId })
+            .eq('confirmed_by', fromId);
+
+        if (suggestionError) {
+            console.error('Error updating suggestion confirmation during merge:', suggestionError);
+            return false;
+        }
+
+        // 4. Update suggestion comments where the participant was the author
+        // Note: suggestion_comments uses user_id, but for internal migrations 
+        // we might be merging external participants which don't have user_id yet.
+        // If we are merging two participants, we should also check if we need to 
+        // migrate specific things in the UI metadata.
+        // For now, let's ensure we migrate anything else tied to fromId if it exists.
+
+        // 5. Delete the external participant
         const { error: deleteError } = await supabase
             .from('participants')
             .delete()
@@ -653,10 +808,42 @@ export const storageService = {
 
         if (deleteError) {
             console.error('Error deleting merged participant:', deleteError);
+            // Some db constraints might prevent deletion if we missed something
+            // Try to see if there's a reference in suggestion_comments
             return false;
         }
 
         clearCache();
         return true;
     },
+
+    updateParticipantRole: async (participantId: string, role: 'admin' | 'member'): Promise<boolean> => {
+        const { error } = await supabase
+            .from('participants')
+            .update({ role })
+            .eq('id', participantId);
+
+        if (error) {
+            console.error('Error updating participant role:', error);
+            return false;
+        }
+
+        clearCache();
+        return true;
+    },
+
+    isAdmin: async (tripId: string): Promise<boolean> => {
+        const user = await storageService.getCurrentUser();
+        if (!user) return false;
+
+        const { data, error } = await supabase
+            .from('participants')
+            .select('role')
+            .eq('trip_id', tripId)
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+        if (error || !data) return false;
+        return data.role === 'admin';
+    }
 };

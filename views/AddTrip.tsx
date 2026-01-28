@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import BottomNav from '../components/BottomNav';
 import Toast, { ToastType } from '../components/Toast';
 import ImageUpload from '../components/ImageUpload';
+import LoadingButton from '../components/LoadingButton';
 import { storageService } from '../services/storageService';
 import { TripStatus } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -223,16 +224,18 @@ const AddTrip: React.FC = () => {
                         </div>
                     </div>
 
-                    <button
+                    <LoadingButton
                         type="submit"
-                        disabled={!isFormValid || isSubmitting}
+                        isLoading={isSubmitting}
+                        loadingText="Salvando..."
+                        disabled={!isFormValid}
                         className={`w-full h-14 font-bold rounded-2xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 ${selectedStatus === 'confirmed'
                             ? 'bg-terracotta-500 text-white'
                             : 'bg-amber-500 text-white'
                             }`}
                     >
-                        {isSubmitting ? 'Salvando...' : (selectedStatus === 'confirmed' ? 'Confirmar Viagem' : 'Salvar Rascunho')}
-                    </button>
+                        {selectedStatus === 'confirmed' ? 'Confirmar Viagem' : 'Salvar Rascunho'}
+                    </LoadingButton>
                 </form>
             </main>
 
