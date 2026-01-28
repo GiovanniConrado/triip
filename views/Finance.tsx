@@ -220,7 +220,24 @@ const Finance = () => {
                 if (creditor.balance < 0.01) creditors.shift();
             }
         }
-        return debts;
+        return debts.map(debt => {
+            const fromP = currentTrip.participants.find(p => p.id === debt.from) || {
+                id: debt.from,
+                name: 'Participante',
+                avatar: `https://ui-avatars.com/api/?name=P&background=random`
+            };
+            const toP = currentTrip.participants.find(p => p.id === debt.to) || {
+                id: debt.to,
+                name: 'Participante',
+                avatar: `https://ui-avatars.com/api/?name=P&background=random`
+            };
+
+            return {
+                ...debt,
+                from: fromP,
+                to: toP
+            };
+        });
     }, [currentTrip, balances, optimizeTransfers]);
 
     // Installment stats

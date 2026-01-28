@@ -34,10 +34,12 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     return <Navigate to="/welcome" state={{ from: location }} replace />;
   }
 
+  /* 
   // If user is logged in but has no profile, and isn't already on the complete-profile page
   if (!profile && location.pathname !== '/complete-profile') {
     return <Navigate to="/complete-profile" replace />;
   }
+  */
 
   return <>{children}</>;
 };

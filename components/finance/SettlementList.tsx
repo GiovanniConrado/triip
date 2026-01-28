@@ -109,7 +109,7 @@ const SettlementList: React.FC<SettlementListProps> = ({
                                 <div className="flex items-center gap-2">
                                     <img src={s.from.avatar} alt={s.from.name} className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm" />
                                     <div>
-                                        <p className="font-bold text-sunset-dark text-sm">{s.from.name.split(' ')[0]}</p>
+                                        <p className="font-bold text-sunset-dark text-sm">{(s.from?.name || 'Participante').split(' ')[0]}</p>
                                         <p className="text-[10px] text-sunset-muted">paga</p>
                                     </div>
                                 </div>
@@ -120,7 +120,7 @@ const SettlementList: React.FC<SettlementListProps> = ({
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <div className="text-right">
-                                        <p className="font-bold text-sunset-dark text-sm">{s.to.name.split(' ')[0]}</p>
+                                        <p className="font-bold text-sunset-dark text-sm">{(s.to?.name || 'Participante').split(' ')[0]}</p>
                                         <p className="text-[10px] text-sunset-muted">recebe</p>
                                     </div>
                                     <img src={s.to.avatar} alt={s.to.name} className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm" />
