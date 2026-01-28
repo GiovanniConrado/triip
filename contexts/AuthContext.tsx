@@ -29,23 +29,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const initStarted = useRef(false);
     const fetchingUserRef = useRef<string | null>(null);
 
-    const fetchProfile = async (userId: string) => {
+    const fetchProfile = async (userId: string, retryCount = 0) => {
+        // Redundancy check: If we already have this profile, don't fetch it again
+        // unless it's a forced refresh or a retry
+        if (profile?.id === userId && retryCount === 0) {
+            console.log('[AuthContext] fetchProfile - Profile already in state for:', userId);
+            return;
+        }
+
         if (fetchingUserRef.current === userId) {
-            console.log('[AuthContext] fetchProfile - Already fetching for:', userId);
+            console.log('[AuthContext] fetchProfile - Task already in progress for:', userId);
             return;
         }
 
         fetchingUserRef.current = userId;
-        console.log('[AuthContext] fetchProfile - START for:', userId);
+        console.log(`[AuthContext] fetchProfile - START (Attempt ${retryCount + 1}) for: ${userId}`);
+
         try {
             const data = await profileService.getProfile(userId);
-            console.log('[AuthContext] fetchProfile - SUCCESS. Data found:', !!data);
             setProfile(data);
+            console.log('[AuthContext] fetchProfile - SUCCESS');
         } catch (error: any) {
             console.error('[AuthContext] fetchProfile - FAILED:', error.message);
-            setProfile(null);
+
+            // Basic retry logic for timeouts
+            if (error.message === 'TIMEOUT' && retryCount < 1) {
+                console.log('[AuthContext] fetchProfile - Retrying after timeout...');
+                fetchingUserRef.current = null; // Reset to allow retry
+                return fetchProfile(userId, retryCount + 1);
+            }
+
+            // If it's not a timeout, or we exhausted retries, we might want to keep the current profile 
+            // if it exists, or set to null if it's the first fetch.
+            // For now, let's not clear it if we already have data to avoid UI flickering
         } finally {
-            console.log('[AuthContext] fetchProfile - FINISHED. Profile state:', profile ? 'Set' : 'Null');
             fetchingUserRef.current = null;
         }
     };

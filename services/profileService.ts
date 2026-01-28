@@ -11,34 +11,41 @@ export interface UserProfile {
 
 export const profileService = {
     async getProfile(userId: string): Promise<UserProfile | null> {
-        console.log('[profileService] getProfile - Querying for:', userId);
-
-        // Timeout after 15 seconds (increased from 5s)
-        const timeoutPromise = new Promise<null>((_, reject) => {
-            setTimeout(() => reject(new Error('TIMEOUT')), 15000);
-        });
+        const startTime = Date.now();
+        console.log(`[profileService] getProfile START - ${userId}`);
 
         const queryPromise = (async () => {
-            const { data, error } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', userId)
-                .single();
+            try {
+                // Use maybeSingle to avoid errors if no profile exists
+                const { data, error } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', userId)
+                    .maybeSingle();
 
-            if (error) {
-                console.error('[profileService] getProfile DB Error:', error.code, error.message);
-                if (error.code === 'PGRST116') return null; // Not found
-                throw error;
+                if (error) {
+                    console.error('[profileService] DB Error:', error.code, error.message);
+                    throw error;
+                }
+                return data;
+            } catch (err: any) {
+                console.error(`[profileService] Query Crash - ${userId}:`, err.message);
+                throw err;
             }
-            return data;
         })();
+
+        // We wrap the race in a timeout logic but we wait up to 25s
+        // Usually, if it doesn't return in 5-10s, something is wrong.
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error('TIMEOUT')), 25000);
+        });
 
         try {
             const result = await Promise.race([queryPromise, timeoutPromise]);
-            console.log('[profileService] getProfile result:', result ? 'Found' : 'Null');
+            console.log(`[profileService] getProfile END - FOUND: ${!!result} in ${Date.now() - startTime}ms`);
             return result;
         } catch (error: any) {
-            console.error('[profileService] getProfile error:', error.message);
+            console.error(`[profileService] getProfile FATAL - ${userId} after ${Date.now() - startTime}ms:`, error.message);
             throw error;
         }
     },
