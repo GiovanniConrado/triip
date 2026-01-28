@@ -894,7 +894,8 @@ const Finance = () => {
                                     <select
                                         value={paidBy}
                                         onChange={e => setPaidBy(e.target.value)}
-                                        className="w-full h-12 pl-4 pr-10 bg-warm-cream border border-terracotta-100 rounded-2xl text-sm font-bold text-sunset-dark appearance-none focus:outline-none focus:ring-2 focus:ring-terracotta-500"
+                                        className="w-full h-12 pl-4 pr-10 bg-warm-cream border border-terracotta-100 rounded-2xl text-sm font-bold text-sunset-dark appearance-none focus:outline-none focus:ring-2 focus:ring-terracotta-500 !bg-none"
+                                        style={{ WebkitAppearance: 'none', MozAppearance: 'none' }}
                                     >
                                         <option value="" disabled>Selecione alguém...</option>
                                         {currentTrip?.participants.map(p => (
@@ -909,7 +910,7 @@ const Finance = () => {
                                 </div>
                             </div>
 
-                            {/* Split Between - Checkbox List */}
+                            {/* Split Between - Grid List like QuickMenu */}
                             <div>
                                 <div className="flex items-center justify-between mb-2">
                                     <label className="text-xs font-bold text-sunset-muted uppercase tracking-wider">
@@ -927,74 +928,123 @@ const Finance = () => {
                                                 }
                                             }
                                         }}
-                                        className="text-[10px] font-bold text-terracotta-600 hover:underline"
+                                        className="text-[10px] font-bold text-terracotta-600 hover:underline px-2"
                                     >
                                         {currentTrip && selectedParticipants.length === currentTrip.participants.length ? 'Desmarcar Todos' : 'Marcar Todos'}
                                     </button>
                                 </div>
 
-                                <div className="bg-warm-cream rounded-2xl p-2 border border-terracotta-100 max-h-40 overflow-y-auto">
+                                <div className="grid grid-cols-2 gap-2">
                                     {currentTrip?.participants.map(p => (
-                                        <label key={p.id} className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/50 cursor-pointer transition-colors">
-                                            <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${selectedParticipants.includes(p.id)
-                                                ? 'bg-terracotta-500 border-terracotta-500'
-                                                : 'bg-white border-terracotta-200'
+                                        <button
+                                            key={p.id}
+                                            type="button"
+                                            onClick={() => {
+                                                if (selectedParticipants.includes(p.id)) {
+                                                    setSelectedParticipants(prev => prev.filter(id => id !== p.id));
+                                                } else {
+                                                    setSelectedParticipants(prev => [...prev, p.id]);
+                                                }
+                                            }}
+                                            className={`flex items-center gap-2 p-2 rounded-xl border transition-all ${selectedParticipants.includes(p.id)
+                                                ? 'bg-terracotta-50 border-terracotta-200 text-terracotta-700'
+                                                : 'bg-white border-terracotta-100 text-sunset-muted'
+                                                }`}
+                                        >
+                                            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${selectedParticipants.includes(p.id)
+                                                ? 'bg-terracotta-500 border-terracotta-500 text-white'
+                                                : 'border-terracotta-200 bg-white'
                                                 }`}>
-                                                {selectedParticipants.includes(p.id) && (
-                                                    <span className="material-symbols-outlined text-white text-sm">check</span>
-                                                )}
+                                                {selectedParticipants.includes(p.id) && <span className="material-symbols-outlined text-[10px] font-black">check</span>}
                                             </div>
-                                            <input
-                                                type="checkbox"
-                                                className="hidden"
-                                                checked={selectedParticipants.includes(p.id)}
-                                                onChange={() => {
-                                                    if (selectedParticipants.includes(p.id)) {
-                                                        setSelectedParticipants(selectedParticipants.filter(id => id !== p.id));
-                                                    } else {
-                                                        setSelectedParticipants([...selectedParticipants, p.id]);
-                                                    }
-                                                }}
-                                            />
-                                            <div className="flex items-center gap-2">
-                                                <img src={p.avatar} alt="" className="w-6 h-6 rounded-full object-cover" />
-                                                <span className="text-sm font-medium text-sunset-dark">{p.name.split(' ')[0]}</span>
-                                            </div>
-                                        </label>
+                                            <img src={p.avatar} alt="" className="w-5 h-5 rounded-full object-cover" />
+                                            <span className="text-xs font-bold truncate">{p.name.split(' ')[0]}</span>
+                                        </button>
                                     ))}
                                 </div>
-                                <p className="text-[10px] text-sunset-muted mt-1 ml-1">
+                                <p className="text-[10px] text-sunset-muted mt-2 ml-1 italic opacity-70">
                                     * Se ninguém for selecionado, o valor será atribuído apenas a quem pagou.
                                 </p>
                             </div>
 
-                            {/* Category (Optional) */}
+                            {/* Category */}
                             <div>
                                 <label className="text-xs font-bold text-sunset-muted uppercase tracking-wider mb-2 block">
-                                    Categoria (Opcional)
+                                    Categoria
                                 </label>
-                                <div className="grid grid-cols-5 gap-2">
+                                <div className="grid grid-cols-6 gap-2">
                                     {CATEGORIES.filter(c => c.id !== 'Todos').map(cat => (
                                         <button
                                             key={cat.id}
                                             type="button"
                                             onClick={() => setCategory(cat.id)}
                                             className={`flex flex-col items-center justify-center py-2 rounded-xl transition-all ${category === cat.id
-                                                ? 'text-terracotta-600 bg-terracotta-50 ring-1 ring-terracotta-200'
-                                                : 'text-sunset-muted hover:bg-warm-cream'
+                                                ? 'text-terracotta-600 bg-terracotta-50 ring-1 ring-terracotta-200 shadow-sm'
+                                                : 'text-sunset-muted hover:bg-warm-cream border border-transparent'
                                                 }`}
                                         >
-                                            <span className={`material-symbols-outlined text-xl mb-0.5 ${category === cat.id ? 'text-terracotta-600' : 'text-sunset-muted'
-                                                }`}>
-                                                {cat.icon}
-                                            </span>
-                                            <span className={`text-[9px] font-bold ${category === cat.id ? 'text-terracotta-600' : 'text-sunset-muted'
-                                                }`}>
-                                                {cat.label}
-                                            </span>
+                                            <span className="material-symbols-outlined text-xl mb-0.5">{cat.icon}</span>
+                                            <span className="text-[9px] font-bold">{cat.label}</span>
                                         </button>
                                     ))}
                                 </div>
+                            </div>
+
+                            {/* Installments logic missing here - Adding it to match QuickActionsMenu */}
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between p-4 bg-warm-cream rounded-2xl border border-terracotta-100 shadow-sm">
+                                    <div className="flex items-center gap-3">
+                                        <span className="material-symbols-outlined text-terracotta-500">credit_card</span>
+                                        <span className="text-sm font-bold text-sunset-dark">Compra parcelada?</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditInstallmentEnabled(!editInstallmentEnabled)}
+                                        className={`w-12 h-6 rounded-full transition-all ${editInstallmentEnabled ? 'bg-terracotta-500' : 'bg-terracotta-100'}`}
+                                    >
+                                        <div className={`w-5 h-5 bg-white rounded-full shadow-md transition-transform ${editInstallmentEnabled ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
+                                    </button>
+                                </div>
+
+                                {editInstallmentEnabled && (
+                                    <div className="space-y-4 animate-fade-in p-4 bg-terracotta-50/30 rounded-2xl border border-terracotta-100">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="text-[10px] font-bold text-sunset-muted uppercase tracking-widest mb-2 block">Nº de Parcelas</label>
+                                                <input
+                                                    type="number"
+                                                    value={editInstallmentTotal}
+                                                    onChange={e => setEditInstallmentTotal(e.target.value)}
+                                                    className="w-full h-11 px-4 bg-white border border-terracotta-100 rounded-xl text-sm font-bold text-sunset-dark"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-bold text-sunset-muted uppercase tracking-widest mb-2 block">Já pagas</label>
+                                                <input
+                                                    type="number"
+                                                    value={editInstallmentPaid}
+                                                    onChange={e => setEditInstallmentPaid(e.target.value)}
+                                                    className="w-full h-11 px-4 bg-white border border-terracotta-100 rounded-xl text-sm font-bold text-sunset-dark"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-sunset-muted uppercase tracking-widest mb-2 block">Data da 1ª Parcela</label>
+                                            <input
+                                                type="date"
+                                                value={editInstallmentFirstDate}
+                                                onChange={e => setEditInstallmentFirstDate(e.target.value)}
+                                                className="w-full h-11 px-4 bg-white border border-terracotta-100 rounded-xl text-sm font-bold text-sunset-dark"
+                                            />
+                                        </div>
+                                        {editInstallmentTotal && amount && (
+                                            <div className="pt-2 border-t border-terracotta-100 flex justify-between items-center text-[10px]">
+                                                <span className="text-sunset-muted uppercase font-bold tracking-wider">Valor por parcela</span>
+                                                <span className="text-terracotta-600 font-black">R$ {(parseFloat(amount.replace(',', '.')) / (parseInt(editInstallmentTotal) || 1)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Receipt Upload */}
@@ -1144,13 +1194,65 @@ const Finance = () => {
                                     <select
                                         value={editPaidBy}
                                         onChange={e => setEditPaidBy(e.target.value)}
-                                        className="w-full h-12 pl-4 pr-10 bg-warm-cream border border-terracotta-100 rounded-2xl text-sm font-bold text-sunset-dark appearance-none focus:outline-none focus:ring-2 focus:ring-terracotta-500"
+                                        className="w-full h-12 pl-4 pr-10 bg-warm-cream border border-terracotta-100 rounded-2xl text-sm font-bold text-sunset-dark appearance-none focus:outline-none focus:ring-2 focus:ring-terracotta-500 !bg-none"
+                                        style={{ WebkitAppearance: 'none', MozAppearance: 'none' }}
                                     >
                                         {currentTrip?.participants.map(p => (
                                             <option key={p.id} value={p.id}>{p.name}</option>
                                         ))}
                                     </select>
                                     <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-sunset-muted pointer-events-none">expand_more</span>
+                                </div>
+                            </div>
+
+                            {/* Split Between (Edit Mode) */}
+                            <div>
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="text-[10px] font-bold text-sunset-muted uppercase tracking-widest">Dividir com</label>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (currentTrip) {
+                                                const allIds = currentTrip.participants.map(p => p.id);
+                                                if (editParticipants.length === allIds.length) {
+                                                    setEditParticipants([]);
+                                                } else {
+                                                    setEditParticipants(allIds);
+                                                }
+                                            }
+                                        }}
+                                        className="text-[10px] font-bold text-terracotta-500 uppercase px-2"
+                                    >
+                                        {currentTrip && editParticipants.length === currentTrip.participants.length ? 'Desmarcar Todos' : 'Marcar Todos'}
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {currentTrip?.participants.map(p => (
+                                        <button
+                                            key={p.id}
+                                            type="button"
+                                            onClick={() => {
+                                                if (editParticipants.includes(p.id)) {
+                                                    setEditParticipants(prev => prev.filter(id => id !== p.id));
+                                                } else {
+                                                    setEditParticipants(prev => [...prev, p.id]);
+                                                }
+                                            }}
+                                            className={`flex items-center gap-2 p-2 rounded-xl border transition-all ${editParticipants.includes(p.id)
+                                                ? 'bg-terracotta-50 border-terracotta-200 text-terracotta-700'
+                                                : 'bg-white border-terracotta-100 text-sunset-muted'
+                                                }`}
+                                        >
+                                            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${editParticipants.includes(p.id)
+                                                ? 'bg-terracotta-500 border-terracotta-500 text-white'
+                                                : 'border-terracotta-200 bg-white'
+                                                }`}>
+                                                {editParticipants.includes(p.id) && <span className="material-symbols-outlined text-[10px] font-black">check</span>}
+                                            </div>
+                                            <img src={p.avatar} alt="" className="w-5 h-5 rounded-full object-cover" />
+                                            <span className="text-xs font-bold truncate">{p.name.split(' ')[0]}</span>
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
 
@@ -1191,25 +1293,42 @@ const Finance = () => {
                             </div>
 
                             {editInstallmentEnabled && (
-                                <div className="grid grid-cols-2 gap-4 animate-fade-in">
-                                    <div>
-                                        <label className="text-[10px] font-bold text-sunset-muted uppercase tracking-widest mb-2 block">Nº de Parcelas</label>
-                                        <input
-                                            type="number"
-                                            value={editInstallmentTotal}
-                                            onChange={e => setEditInstallmentTotal(e.target.value)}
-                                            className="w-full h-11 px-4 bg-warm-cream border border-terracotta-100 rounded-xl text-sm font-bold text-sunset-dark"
-                                        />
+                                <div className="space-y-4 animate-fade-in p-4 bg-terracotta-50/30 rounded-2xl border border-terracotta-100">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-[10px] font-bold text-sunset-muted uppercase tracking-widest mb-2 block">Nº de Parcelas</label>
+                                            <input
+                                                type="number"
+                                                value={editInstallmentTotal}
+                                                onChange={e => setEditInstallmentTotal(e.target.value)}
+                                                className="w-full h-11 px-4 bg-white border border-terracotta-100 rounded-xl text-sm font-bold text-sunset-dark"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-sunset-muted uppercase tracking-widest mb-2 block">Já pagas</label>
+                                            <input
+                                                type="number"
+                                                value={editInstallmentPaid}
+                                                onChange={e => setEditInstallmentPaid(e.target.value)}
+                                                className="w-full h-11 px-4 bg-white border border-terracotta-100 rounded-xl text-sm font-bold text-sunset-dark"
+                                            />
+                                        </div>
                                     </div>
                                     <div>
-                                        <label className="text-[10px] font-bold text-sunset-muted uppercase tracking-widest mb-2 block">Já pagas</label>
+                                        <label className="text-[10px] font-bold text-sunset-muted uppercase tracking-widest mb-2 block">Data da 1ª Parcela</label>
                                         <input
-                                            type="number"
-                                            value={editInstallmentPaid}
-                                            onChange={e => setEditInstallmentPaid(e.target.value)}
-                                            className="w-full h-11 px-4 bg-warm-cream border border-terracotta-100 rounded-xl text-sm font-bold text-sunset-dark"
+                                            type="date"
+                                            value={editInstallmentFirstDate}
+                                            onChange={e => setEditInstallmentFirstDate(e.target.value)}
+                                            className="w-full h-11 px-4 bg-white border border-terracotta-100 rounded-xl text-sm font-bold text-sunset-dark"
                                         />
                                     </div>
+                                    {editInstallmentTotal && editAmount && (
+                                        <div className="pt-2 border-t border-terracotta-100 flex justify-between items-center text-[10px]">
+                                            <span className="text-sunset-muted uppercase font-bold tracking-wider">Valor por parcela</span>
+                                            <span className="text-terracotta-600 font-black">R$ {(parseFloat(editAmount.replace(',', '.')) / (parseInt(editInstallmentTotal) || 1)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
