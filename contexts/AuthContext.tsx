@@ -27,18 +27,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const initStarted = useRef(false);
+    const fetchingUserRef = useRef<string | null>(null);
 
     const fetchProfile = async (userId: string) => {
+        if (fetchingUserRef.current === userId) {
+            console.log('[AuthContext] fetchProfile - Already fetching for:', userId);
+            return;
+        }
+
+        fetchingUserRef.current = userId;
         console.log('[AuthContext] fetchProfile - START for:', userId);
         try {
             const data = await profileService.getProfile(userId);
             console.log('[AuthContext] fetchProfile - SUCCESS. Data found:', !!data);
             setProfile(data);
-        } catch (error) {
-            console.error('[AuthContext] fetchProfile - FAILED:', error);
+        } catch (error: any) {
+            console.error('[AuthContext] fetchProfile - FAILED:', error.message);
             setProfile(null);
         } finally {
             console.log('[AuthContext] fetchProfile - FINISHED. Profile state:', profile ? 'Set' : 'Null');
+            fetchingUserRef.current = null;
         }
     };
 

@@ -248,7 +248,7 @@ const Finance = () => {
             participants: expenseParticipants,
             status: 'pending',
             date: new Date().toISOString(),
-            receiptUrl: receiptUrl,
+            receiptUrl: receiptUrl || undefined,
             paymentMethod: editInstallmentEnabled ? 'installment' : 'cash',
             installment: editInstallmentEnabled ? {
                 total: parseInt(editInstallmentTotal) || 2,

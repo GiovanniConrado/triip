@@ -13,9 +13,9 @@ export const profileService = {
     async getProfile(userId: string): Promise<UserProfile | null> {
         console.log('[profileService] getProfile - Querying for:', userId);
 
-        // Timeout after 5 seconds
+        // Timeout after 15 seconds (increased from 5s)
         const timeoutPromise = new Promise<null>((_, reject) => {
-            setTimeout(() => reject(new Error('TIMEOUT')), 5000);
+            setTimeout(() => reject(new Error('TIMEOUT')), 15000);
         });
 
         const queryPromise = (async () => {

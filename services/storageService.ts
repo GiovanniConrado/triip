@@ -441,7 +441,13 @@ export const storageService = {
             .single();
 
         if (error || !expense) {
-            console.error('Error creating expense:', error?.message || 'Unknown error');
+            console.error('[storageService] CRITICAL Error creating expense:', {
+                message: error?.message,
+                code: error?.code,
+                details: error?.details,
+                hint: error?.hint,
+                payloadSent: mapExpenseToSupabase(mainData)
+            });
             return null;
         }
 
