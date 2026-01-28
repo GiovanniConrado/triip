@@ -55,6 +55,15 @@ const EXPENSE_CATEGORIES = [
     { id: 'Outros', icon: 'payments', label: 'Outros' },
 ];
 
+const MAPPED_CATEGORIES: Record<string, string> = {
+    'Restaurantes': 'Alimentação',
+    'Mercado': 'Alimentação',
+    'Passeios': 'Passeios',
+    'Hospedagem': 'Hospedagem',
+    'Transporte': 'Transporte',
+    'Outros': 'Outros'
+};
+
 interface QuickActionsMenuProps {
     isOpen: boolean;
     onClose: () => void;
@@ -101,6 +110,7 @@ const QuickActionsMenu: React.FC<QuickActionsMenuProps> = ({ isOpen, onClose }) 
     const [expenseInstallmentEnabled, setExpenseInstallmentEnabled] = useState(false);
     const [expenseInstallmentTotal, setExpenseInstallmentTotal] = useState('1');
     const [expenseInstallmentPaid, setExpenseInstallmentPaid] = useState('1');
+    const [expenseInstallmentDate, setExpenseInstallmentDate] = useState(new Date().toISOString().split('T')[0]);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
@@ -148,6 +158,7 @@ const QuickActionsMenu: React.FC<QuickActionsMenuProps> = ({ isOpen, onClose }) 
         setExpenseInstallmentEnabled(false);
         setExpenseInstallmentTotal('1');
         setExpenseInstallmentPaid('1');
+        setExpenseInstallmentDate(new Date().toISOString().split('T')[0]);
         setIsSubmitting(false);
     };
 
@@ -185,68 +196,85 @@ const QuickActionsMenu: React.FC<QuickActionsMenuProps> = ({ isOpen, onClose }) 
             ? `${formatDate(tripStartDate)} - ${formatDate(tripEndDate)}`
             : 'A definir';
 
-        const newTrip = await storageService.createTrip({
-            title: tripTitle.trim(),
-            destination: tripDestination.trim(),
-            dateRange,
-            startDate: tripStartDate,
-            endDate: tripEndDate,
-            imageUrl: DEFAULT_TRIP_IMAGE,
-            status: tripStatus,
-            tripType,
-            financeMode,
-            participants: [],
-        });
+        setIsSubmitting(true);
+        try {
+            const newTrip = await storageService.createTrip({
+                title: tripTitle.trim(),
+                destination: tripDestination.trim(),
+                dateRange,
+                startDate: tripStartDate,
+                endDate: tripEndDate,
+                imageUrl: DEFAULT_TRIP_IMAGE,
+                status: tripStatus,
+                tripType,
+                financeMode,
+                participants: [],
+            });
 
-        if (newTrip) {
-            setTimeout(() => {
-                navigate(`/trip/${newTrip.id}`);
-                onClose();
-            }, 200);
+            if (newTrip) {
+                setTimeout(() => {
+                    navigate(`/trip/${newTrip.id}`);
+                    onClose();
+                }, 200);
+            }
+        } catch (error) {
+            console.error('Error creating trip:', error);
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
     const handleCreateSuggestion = async () => {
         if (!suggestionTitle.trim() || !selectedTrip) return;
 
-        const created = await storageService.createSuggestion({
-            tripId: selectedTrip.id,
-            title: suggestionTitle.trim(),
-            category: suggestionCategory,
-            location: suggestionLocation || 'A definir',
-            price: suggestionPrice ? `R$ ${suggestionPrice}` : 'A consultar',
-            rating: 5,
-            imageUrl: suggestionImageUrl || DEFAULT_TRIP_IMAGE,
-            description: suggestionLink ? `${suggestionDescription}\n\nLink: ${suggestionLink}` : suggestionDescription,
-            status: suggestionStatus,
-            comments: [],
-            externalUrl: suggestionLink || undefined,
-        });
+        setIsSubmitting(true);
+        try {
+            const created = await storageService.createSuggestion({
+                tripId: selectedTrip.id,
+                title: suggestionTitle.trim(),
+                category: suggestionCategory,
+                location: suggestionLocation || 'A definir',
+                price: suggestionPrice ? `R$ ${suggestionPrice}` : 'A consultar',
+                rating: 5,
+                imageUrl: suggestionImageUrl || DEFAULT_TRIP_IMAGE,
+                description: suggestionLink ? `${suggestionDescription}\n\nLink: ${suggestionLink}` : suggestionDescription,
+                status: suggestionStatus,
+                comments: [],
+                externalUrl: suggestionLink || undefined,
+            });
 
-        if (created) {
-            // Case: Auto-create expense
-            if (suggestionCreateExpense && suggestionPrice && suggestionStatus === 'confirmed') {
-                await storageService.createExpense({
-                    tripId: selectedTrip.id,
-                    amount: parseFloat(suggestionPrice.replace(',', '.')),
-                    description: `Reserva: ${suggestionTitle}`,
-                    category: suggestionCategory as any,
-                    paidBy: suggestionPaidBy,
-                    participants: selectedTrip.participants.map(p => p.id),
-                    status: 'pending',
-                    date: new Date().toISOString()
-                });
+            if (created) {
+                // Case: Auto-create expense
+                if (suggestionCreateExpense && suggestionPrice && suggestionStatus === 'confirmed') {
+                    const amount = parseFloat(suggestionPrice.replace(',', '.'));
+                    if (!isNaN(amount)) {
+                        await storageService.createExpense({
+                            tripId: selectedTrip.id,
+                            amount,
+                            description: `Reserva: ${suggestionTitle}`,
+                            category: (MAPPED_CATEGORIES[suggestionCategory] || 'Outros') as any,
+                            paidBy: suggestionPaidBy,
+                            participants: selectedTrip.participants.map(p => p.id),
+                            status: 'pending',
+                            date: new Date().toISOString()
+                        });
+                    }
+                }
+
+                setTimeout(() => {
+                    navigate(`/trip/${selectedTrip.id}`);
+                    onClose();
+                }, 200);
             }
-
-            setTimeout(() => {
-                navigate(`/trip/${selectedTrip.id}`);
-                onClose();
-            }, 200);
+        } catch (error) {
+            console.error('Error creating suggestion:', error);
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
     const handleCreateExpense = async () => {
-        if (!expenseAmount || !expenseDescription || !selectedTrip) return;
+        if (!expenseAmount || !selectedTrip) return;
 
         setIsSubmitting(true);
         try {
@@ -265,7 +293,7 @@ const QuickActionsMenu: React.FC<QuickActionsMenuProps> = ({ isOpen, onClose }) 
                 installment: expenseInstallmentEnabled ? {
                     total: parseInt(expenseInstallmentTotal) || 2,
                     paid: parseInt(expenseInstallmentPaid) || 0,
-                    firstDueDate: new Date().toISOString().split('T')[0],
+                    firstDueDate: expenseInstallmentDate || new Date().toISOString().split('T')[0],
                     amount: amount / (parseInt(expenseInstallmentTotal) || 2)
                 } : undefined
             });
@@ -536,14 +564,16 @@ const QuickActionsMenu: React.FC<QuickActionsMenuProps> = ({ isOpen, onClose }) 
                                             </p>
                                         )}
                                     </div>
-                                    <button
+                                    <LoadingButton
                                         onClick={handleCreateTrip}
+                                        isLoading={isSubmitting}
+                                        loadingText="Criando..."
                                         disabled={!canCreateTrip}
                                         className="w-full h-14 bg-terracotta-500 text-white font-bold rounded-2xl shadow-lg shadow-terracotta-500/30 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                                     >
                                         <span className="material-symbols-outlined">flight_takeoff</span>
                                         Criar Viagem
-                                    </button>
+                                    </LoadingButton>
                                 </div>
                             )}
                         </div>
@@ -793,14 +823,16 @@ const QuickActionsMenu: React.FC<QuickActionsMenuProps> = ({ isOpen, onClose }) 
                                     />
                                 </div>
 
-                                <button
+                                <LoadingButton
                                     onClick={handleCreateSuggestion}
+                                    isLoading={isSubmitting}
+                                    loadingText="Salvando..."
                                     disabled={!suggestionTitle.trim()}
                                     className="w-full h-14 bg-terracotta-500 text-white font-bold rounded-2xl shadow-lg shadow-terracotta-500/30 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                                 >
                                     <span className="material-symbols-outlined">add</span>
                                     Adicionar ao Plano
-                                </button>
+                                </LoadingButton>
                             </div>
                         </div>
                     )}
@@ -850,20 +882,17 @@ const QuickActionsMenu: React.FC<QuickActionsMenuProps> = ({ isOpen, onClose }) 
                                 {/* Payer */}
                                 <div>
                                     <label className="text-[10px] font-bold text-sunset-muted uppercase tracking-widest block mb-2">Quem pagou?</label>
-                                    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-                                        {selectedTrip?.participants.map(p => (
-                                            <button
-                                                key={p.id}
-                                                type="button"
-                                                onClick={() => setExpensePaidBy(p.id)}
-                                                className={`flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl transition-all ${expensePaidBy === p.id
-                                                    ? 'bg-terracotta-500 text-white shadow-md'
-                                                    : 'bg-white text-sunset-dark border border-terracotta-100'}`}
-                                            >
-                                                <img src={p.avatar} alt="" className="w-5 h-5 rounded-full object-cover" />
-                                                <span className="text-xs font-bold">{p.name.split(' ')[0]}</span>
-                                            </button>
-                                        ))}
+                                    <div className="relative">
+                                        <select
+                                            value={expensePaidBy}
+                                            onChange={e => setExpensePaidBy(e.target.value)}
+                                            className="w-full h-12 pl-4 pr-10 bg-white border border-terracotta-100 rounded-xl text-sm font-bold text-sunset-dark appearance-none focus:outline-none focus:ring-2 focus:ring-terracotta-500"
+                                        >
+                                            {selectedTrip?.participants.map(p => (
+                                                <option key={p.id} value={p.id}>{p.name}</option>
+                                            ))}
+                                        </select>
+                                        <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-sunset-muted pointer-events-none">expand_more</span>
                                     </div>
                                 </div>
 
@@ -952,25 +981,42 @@ const QuickActionsMenu: React.FC<QuickActionsMenuProps> = ({ isOpen, onClose }) 
                                     </div>
 
                                     {expenseInstallmentEnabled && (
-                                        <div className="grid grid-cols-2 gap-4 animate-fade-in p-4 bg-terracotta-50/50 rounded-2xl border border-terracotta-100">
+                                        <div className="space-y-4 animate-fade-in p-4 bg-terracotta-50/50 rounded-2xl border border-terracotta-100">
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-sunset-muted uppercase tracking-widest mb-2 block">Nº de Parcelas</label>
+                                                    <input
+                                                        type="number"
+                                                        value={expenseInstallmentTotal}
+                                                        onChange={e => setExpenseInstallmentTotal(e.target.value)}
+                                                        className="w-full h-11 px-4 bg-white border border-terracotta-100 rounded-xl text-sm font-bold text-sunset-dark"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-sunset-muted uppercase tracking-widest mb-2 block">Já pagas</label>
+                                                    <input
+                                                        type="number"
+                                                        value={expenseInstallmentPaid}
+                                                        onChange={e => setExpenseInstallmentPaid(e.target.value)}
+                                                        className="w-full h-11 px-4 bg-white border border-terracotta-100 rounded-xl text-sm font-bold text-sunset-dark"
+                                                    />
+                                                </div>
+                                            </div>
                                             <div>
-                                                <label className="text-[10px] font-bold text-sunset-muted uppercase tracking-widest mb-2 block">Nº de Parcelas</label>
+                                                <label className="text-[10px] font-bold text-sunset-muted uppercase tracking-widest mb-2 block">Data da 1ª Parcela</label>
                                                 <input
-                                                    type="number"
-                                                    value={expenseInstallmentTotal}
-                                                    onChange={e => setExpenseInstallmentTotal(e.target.value)}
+                                                    type="date"
+                                                    value={expenseInstallmentDate}
+                                                    onChange={e => setExpenseInstallmentDate(e.target.value)}
                                                     className="w-full h-11 px-4 bg-white border border-terracotta-100 rounded-xl text-sm font-bold text-sunset-dark"
                                                 />
                                             </div>
-                                            <div>
-                                                <label className="text-[10px] font-bold text-sunset-muted uppercase tracking-widest mb-2 block">Já pagas</label>
-                                                <input
-                                                    type="number"
-                                                    value={expenseInstallmentPaid}
-                                                    onChange={e => setExpenseInstallmentPaid(e.target.value)}
-                                                    className="w-full h-11 px-4 bg-white border border-terracotta-100 rounded-xl text-sm font-bold text-sunset-dark"
-                                                />
-                                            </div>
+                                            {expenseInstallmentTotal && expenseAmount && (
+                                                <div className="pt-2 border-t border-terracotta-100 flex justify-between items-center text-[10px]">
+                                                    <span className="text-sunset-muted uppercase font-bold tracking-wider">Valor por parcela</span>
+                                                    <span className="text-terracotta-600 font-black">R$ {(parseFloat(expenseAmount.replace(',', '.')) / (parseInt(expenseInstallmentTotal) || 1)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -984,6 +1030,7 @@ const QuickActionsMenu: React.FC<QuickActionsMenuProps> = ({ isOpen, onClose }) 
                                         onImageChange={setExpenseReceiptUrl}
                                         placeholder="Anexar Comprovante"
                                         className="h-32"
+                                        noCrop={true}
                                     />
                                 </div>
 
@@ -991,7 +1038,7 @@ const QuickActionsMenu: React.FC<QuickActionsMenuProps> = ({ isOpen, onClose }) 
                                     onClick={handleCreateExpense}
                                     isLoading={isSubmitting}
                                     loadingText="Salvando..."
-                                    disabled={!expenseAmount || !expenseDescription}
+                                    disabled={!expenseAmount}
                                     className="w-full h-14 bg-terracotta-500 text-white font-bold rounded-2xl shadow-lg shadow-terracotta-500/30"
                                 >
                                     Criar Despesa

@@ -324,9 +324,10 @@ export const storageService = {
         }
 
         // AUTO-ADD OWNER AS PARTICIPANT
+        let ownerParticipant: Participant | null = null;
         try {
             const profile = await profileService.getProfile(user.id);
-            await supabase
+            const { data: pData, error: pError } = await supabase
                 .from('participants')
                 .insert([{
                     trip_id: data.id,
@@ -336,13 +337,22 @@ export const storageService = {
                     is_external: false,
                     user_id: user.id,
                     role: 'admin'
-                }]);
-        } catch (err) {
-            console.error('Failed to add owner as participant:', err);
+                }])
+                .select()
+                .single();
+
+            if (pError) throw pError;
+            if (pData) ownerParticipant = mapParticipantFromSupabase(pData);
+        } catch (err: any) {
+            console.error('[storageService] Failed to add owner as participant. This is often an RLS policy issue:', err.message || err);
         }
 
         clearCache(); // Invalida o cache
-        return mapTripFromSupabase(data);
+        const trip = mapTripFromSupabase(data);
+        if (ownerParticipant) {
+            trip.participants = [ownerParticipant];
+        }
+        return trip;
     },
 
     updateTrip: async (id: string, updates: Partial<Trip>): Promise<Trip | null> => {

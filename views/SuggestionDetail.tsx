@@ -140,7 +140,7 @@ const SuggestionDetail: React.FC = () => {
                 }
 
                 setToast({ message: syncFinance ? 'Item e lançamento removidos!' : 'Item removido com sucesso!', type: 'success' });
-                setTimeout(() => navigate(`/trip/${id}`), 1000);
+                navigate(`/trip/${id}`);
             }
         } finally {
             setIsSubmitting(false);
@@ -235,7 +235,7 @@ const SuggestionDetail: React.FC = () => {
     };
 
     if (isLoading) return <Loading />;
-    if (!suggestion) {
+    if (!suggestion && !isSubmitting) {
         return (
             <div className="flex items-center justify-center min-h-screen">
                 <p className="text-sunset-muted">Sugestão não encontrada</p>

@@ -11,6 +11,7 @@ interface ImageUploadProps {
     cropShape?: 'rect' | 'round';
     placeholder?: string;
     className?: string;
+    noCrop?: boolean;
 }
 
 const ImageUpload: React.FC<ImageUploadProps> = ({
@@ -21,6 +22,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
     cropShape = 'rect',
     placeholder = 'Selecionar Imagem',
     className = '',
+    noCrop = false,
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -47,7 +49,25 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
         try {
             const dataUrl = await imageService.readFileAsDataURL(file);
             setSelectedImage(dataUrl);
-            setShowCropper(true);
+
+            if (noCrop) {
+                // Skip cropper and upload immediately
+                setIsUploading(true);
+                try {
+                    const result = await imageService.uploadCroppedImage(file, folder);
+                    if (result.success && result.url) {
+                        onImageChange(result.url);
+                        setToast({ message: 'Arquivo anexado!', type: 'success' });
+                    } else {
+                        setToast({ message: result.error || 'Erro ao fazer upload.', type: 'error' });
+                    }
+                } finally {
+                    setIsUploading(false);
+                    setSelectedImage(null);
+                }
+            } else {
+                setShowCropper(true);
+            }
         } catch (error) {
             console.error('Error reading file:', error);
             setToast({ message: 'Erro ao carregar imagem.', type: 'error' });
@@ -97,7 +117,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
             <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,application/pdf"
                 onChange={handleFileSelect}
                 className="hidden"
             />
@@ -106,11 +126,18 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
             <div className={`relative ${className}`}>
                 {currentImage ? (
                     <div className="relative group w-full h-full">
-                        <img
-                            src={currentImage}
-                            alt="Preview"
-                            className={`w-full h-full object-cover ${cropShape === 'round' ? 'rounded-full' : 'rounded-2xl'} border-2 border-terracotta-100`}
-                        />
+                        {currentImage.toLowerCase().split('?')[0].endsWith('.pdf') ? (
+                            <div className={`w-full h-full flex flex-col items-center justify-center bg-slate-100 ${cropShape === 'round' ? 'rounded-full' : 'rounded-2xl'} border-2 border-terracotta-100`}>
+                                <span className="material-symbols-outlined text-4xl text-red-500">picture_as_pdf</span>
+                                <span className="text-[10px] font-bold text-slate-500 mt-1 uppercase">PDF Anexado</span>
+                            </div>
+                        ) : (
+                            <img
+                                src={currentImage}
+                                alt="Preview"
+                                className={`w-full h-full object-cover ${cropShape === 'round' ? 'rounded-full' : 'rounded-2xl'} border-2 border-terracotta-100`}
+                            />
+                        )}
                         <div className={`absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center ${cropShape === 'round' ? 'rounded-full' : 'rounded-2xl'}`}>
                             <button
                                 onClick={triggerFileSelect}

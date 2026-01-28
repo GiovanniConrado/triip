@@ -998,6 +998,7 @@ const Finance = () => {
                                     onImageChange={setReceiptUrl}
                                     placeholder="Anexar Comprovante"
                                     className="h-32"
+                                    noCrop={true}
                                 />
                             </div>
 
@@ -1211,6 +1212,7 @@ const Finance = () => {
                                     onImageChange={setEditReceiptUrl}
                                     placeholder="Alterar Comprovante"
                                     className="h-32"
+                                    noCrop={true}
                                 />
                             </div>
 

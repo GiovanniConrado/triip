@@ -115,9 +115,7 @@ const TripSuggestions: React.FC = () => {
             const success = await storageService.deleteTrip(id);
             if (success) {
                 setToast({ message: 'Viagem excluída com sucesso.', type: 'info' });
-                setTimeout(() => {
-                    navigate('/dashboard');
-                }, 1000);
+                navigate('/dashboard');
             } else {
                 setToast({ message: 'Erro ao excluir viagem.', type: 'error' });
             }
@@ -304,7 +302,7 @@ const TripSuggestions: React.FC = () => {
         );
     }
 
-    if (!trip) {
+    if (!trip && !isSubmitting) {
         return (
             <div className="min-h-screen bg-warm-cream flex flex-col items-center justify-center p-6 text-center">
                 <span className="material-symbols-outlined text-6xl text-terracotta-300 mb-4">search_off</span>
