@@ -40,8 +40,9 @@ const CompleteProfile: React.FC = () => {
                 avatar_url: user.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=random`,
                 updated_at: new Date().toISOString(),
             });
-
+            console.log('[CompleteProfile] Profile created, refreshing context...');
             await refreshProfile();
+            console.log('[CompleteProfile] Profile refreshed, navigating to dashboard...');
             navigate('/dashboard');
         } catch (error: any) {
             setToast({ message: error.message || 'Erro ao salvar perfil.', type: 'error' });

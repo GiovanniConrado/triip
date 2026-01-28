@@ -274,6 +274,9 @@ const Finance = () => {
                     setPaidBy(currentTrip.participants[0].id);
                 }
             }
+        } catch (error: any) {
+            console.error('Error adding expense:', error);
+            setToast({ message: error.message || 'Erro ao adicionar despesa.', type: 'error' });
         } finally {
             setIsSubmitting(false);
         }
@@ -294,6 +297,9 @@ const Finance = () => {
                 setToast({ message: 'Despesa removida', type: 'info' });
             }
             setExpenseToDelete(null);
+        } catch (error: any) {
+            console.error('Error deleting expense:', error);
+            setToast({ message: error.message || 'Erro ao remover despesa.', type: 'error' });
         } finally {
             setIsSubmitting(false);
         }
@@ -399,9 +405,13 @@ const Finance = () => {
             if (updated) {
                 const updatedExpenses = await storageService.getExpensesByTrip(tripId);
                 setExpenses(updatedExpenses);
+                setEditParticipants([]);
                 setEditingExpense(null);
-                setToast({ message: 'Despesa atualizada!', type: 'success' });
+                setToast({ message: 'Alterações salvas! ✅', type: 'success' });
             }
+        } catch (error: any) {
+            console.error('Error saving expense:', error);
+            setToast({ message: error.message || 'Erro ao salvar alterações.', type: 'error' });
         } finally {
             setIsSubmitting(false);
         }

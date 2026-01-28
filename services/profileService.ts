@@ -11,17 +11,36 @@ export interface UserProfile {
 
 export const profileService = {
     async getProfile(userId: string): Promise<UserProfile | null> {
-        const { data, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', userId)
-            .single();
+        console.log('[profileService] getProfile - Querying for:', userId);
 
-        if (error) {
-            if (error.code === 'PGRST116') return null; // Not found
+        // Timeout after 5 seconds
+        const timeoutPromise = new Promise<null>((_, reject) => {
+            setTimeout(() => reject(new Error('TIMEOUT')), 5000);
+        });
+
+        const queryPromise = (async () => {
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', userId)
+                .single();
+
+            if (error) {
+                console.error('[profileService] getProfile DB Error:', error.code, error.message);
+                if (error.code === 'PGRST116') return null; // Not found
+                throw error;
+            }
+            return data;
+        })();
+
+        try {
+            const result = await Promise.race([queryPromise, timeoutPromise]);
+            console.log('[profileService] getProfile result:', result ? 'Found' : 'Null');
+            return result;
+        } catch (error: any) {
+            console.error('[profileService] getProfile error:', error.message);
             throw error;
         }
-        return data;
     },
 
     async createProfile(profile: UserProfile): Promise<UserProfile | null> {

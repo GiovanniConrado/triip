@@ -28,6 +28,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [showCropper, setShowCropper] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
     const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
     const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -53,8 +54,17 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
             if (noCrop) {
                 // Skip cropper and upload immediately
                 setIsUploading(true);
+                setUploadProgress(10); // Start with something
                 try {
+                    // Simulate progress since Supabase generic upload is opaque
+                    const timer = setInterval(() => {
+                        setUploadProgress(prev => prev < 90 ? prev + 10 : prev);
+                    }, 500);
+
                     const result = await imageService.uploadCroppedImage(file, folder);
+                    clearInterval(timer);
+                    setUploadProgress(100);
+
                     if (result.success && result.url) {
                         onImageChange(result.url);
                         setToast({ message: 'Arquivo anexado!', type: 'success' });
@@ -82,9 +92,17 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
     const handleCropComplete = async (croppedBlob: Blob) => {
         setShowCropper(false);
         setIsUploading(true);
+        setUploadProgress(10);
 
         try {
+            const timer = setInterval(() => {
+                setUploadProgress(prev => prev < 90 ? prev + 10 : prev);
+            }, 500);
+
             const result = await imageService.uploadCroppedImage(croppedBlob, folder);
+
+            clearInterval(timer);
+            setUploadProgress(100);
 
             if (result.success && result.url) {
                 onImageChange(result.url);
@@ -145,10 +163,18 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
                                 className="flex items-center gap-2 px-3 py-1.5 bg-white/90 rounded-xl font-bold text-sunset-dark active:scale-95 transition-all text-sm"
                             >
                                 {isUploading ? (
-                                    <>
-                                        <span className="material-symbols-outlined text-base animate-spin">progress_activity</span>
-                                        <span>Enviando...</span>
-                                    </>
+                                    <div className="flex flex-col items-center">
+                                        <div className="flex items-center gap-2">
+                                            <span className="material-symbols-outlined text-base animate-spin">progress_activity</span>
+                                            <span>{uploadProgress}%</span>
+                                        </div>
+                                        <div className="w-16 h-1 bg-terracotta-100 rounded-full mt-1 overflow-hidden">
+                                            <div
+                                                className="h-full bg-terracotta-500 transition-all duration-300"
+                                                style={{ width: `${uploadProgress}%` }}
+                                            />
+                                        </div>
+                                    </div>
                                 ) : (
                                     <>
                                         <span className="material-symbols-outlined text-base">edit</span>
@@ -165,10 +191,16 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
                         className={`w-full h-full min-h-[120px] border-2 border-dashed border-terracotta-200 bg-terracotta-50/50 flex flex-col items-center justify-center gap-2 active:scale-[0.99] transition-all ${cropShape === 'round' ? 'rounded-full' : 'rounded-2xl'}`}
                     >
                         {isUploading ? (
-                            <>
+                            <div className="flex flex-col items-center gap-2 w-full px-12">
                                 <span className="material-symbols-outlined text-3xl text-terracotta-400 animate-spin">progress_activity</span>
-                                <span className="text-xs font-medium text-sunset-muted">Enviando...</span>
-                            </>
+                                <div className="w-full h-1.5 bg-terracotta-100 rounded-full overflow-hidden">
+                                    <div
+                                        className="h-full bg-terracotta-500 transition-all duration-300"
+                                        style={{ width: `${uploadProgress}%` }}
+                                    />
+                                </div>
+                                <span className="text-[10px] font-bold text-terracotta-600 uppercase tracking-widest">{uploadProgress}% ENVIADO</span>
+                            </div>
                         ) : (
                             <>
                                 <span className="material-symbols-outlined text-3xl text-terracotta-300">add_photo_alternate</span>

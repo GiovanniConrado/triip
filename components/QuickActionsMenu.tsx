@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import Toast, { ToastType } from './Toast';
 import { storageService } from '../services/storageService';
 import { Trip, TripStatus, TripType, FinanceMode, Participant } from '../types';
 import { DEFAULT_TRIP_IMAGE } from '../constants';
@@ -112,6 +113,7 @@ const QuickActionsMenu: React.FC<QuickActionsMenuProps> = ({ isOpen, onClose }) 
     const [expenseInstallmentPaid, setExpenseInstallmentPaid] = useState('1');
     const [expenseInstallmentDate, setExpenseInstallmentDate] = useState(new Date().toISOString().split('T')[0]);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
     useEffect(() => {
         const loadTrips = async () => {
@@ -212,13 +214,15 @@ const QuickActionsMenu: React.FC<QuickActionsMenuProps> = ({ isOpen, onClose }) 
             });
 
             if (newTrip) {
+                setToast({ message: 'Viagem criada com sucesso! 🎉', type: 'success' });
                 setTimeout(() => {
                     navigate(`/trip/${newTrip.id}`);
                     onClose();
-                }, 200);
+                }, 1000);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error creating trip:', error);
+            setToast({ message: error.message || 'Erro ao criar viagem.', type: 'error' });
         } finally {
             setIsSubmitting(false);
         }
@@ -262,12 +266,14 @@ const QuickActionsMenu: React.FC<QuickActionsMenuProps> = ({ isOpen, onClose }) 
                 }
 
                 setTimeout(() => {
+                    setToast({ message: 'Sugestão enviada! 🚀', type: 'success' });
                     navigate(`/trip/${selectedTrip.id}`);
                     onClose();
-                }, 200);
+                }, 500);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error creating suggestion:', error);
+            setToast({ message: error.message || 'Erro ao enviar sugestão.', type: 'error' });
         } finally {
             setIsSubmitting(false);
         }
@@ -298,9 +304,13 @@ const QuickActionsMenu: React.FC<QuickActionsMenuProps> = ({ isOpen, onClose }) 
                 } : undefined
             });
 
-            onClose();
-        } catch (error) {
+            setToast({ message: 'Gasto registrado! 💸', type: 'success' });
+            setTimeout(() => {
+                onClose();
+            }, 800);
+        } catch (error: any) {
             console.error('Error adding expense:', error);
+            setToast({ message: error.message || 'Erro ao registrar gasto.', type: 'error' });
         } finally {
             setIsSubmitting(false);
         }
@@ -335,6 +345,7 @@ const QuickActionsMenu: React.FC<QuickActionsMenuProps> = ({ isOpen, onClose }) 
 
     return (
         <>
+            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             {/* Backdrop */}
             <div
                 className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[90] transition-opacity duration-300"

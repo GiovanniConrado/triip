@@ -13,7 +13,11 @@ export const imageService = {
     /**
      * Upload an image file to Supabase Storage
      */
-    async uploadImage(file: File, folder: 'trips' | 'profiles' | 'items' | 'receipts'): Promise<UploadResult> {
+    async uploadImage(
+        file: File,
+        folder: 'trips' | 'profiles' | 'items' | 'receipts',
+        onProgress?: (percent: number) => void
+    ): Promise<UploadResult> {
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) {
@@ -30,6 +34,10 @@ export const imageService = {
                 .upload(fileName, file, {
                     cacheControl: '3600',
                     upsert: false,
+                    // Use XHR for progress if needed, but Supabase JS V2 uses fetch by default.
+                    // For progress we need to handle it or use a different client if available.
+                    // Actually, Supabase JS v2 doesn't native support onUploadProgress in .upload() 
+                    // without custom fetch implementation.
                 });
 
             if (uploadError) {
