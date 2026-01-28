@@ -50,12 +50,12 @@ export const profileService = {
 
         const { data, error } = await supabase
             .from('profiles')
-            .insert([payload])
+            .upsert([payload])
             .select()
             .single();
 
         if (error) {
-            console.error('[profileService] Create error:', error);
+            console.error('[profileService] Create error:', error.code, error.message);
             throw error;
         }
         return data;
