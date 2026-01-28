@@ -4,6 +4,7 @@ import { storageService } from '../services/storageService';
 import { Trip, TripStatus, TripType, FinanceMode, Participant } from '../types';
 import { DEFAULT_TRIP_IMAGE } from '../constants';
 import ImageUpload from './ImageUpload';
+import LoadingButton from './LoadingButton';
 
 interface QuickAction {
     id: string;
@@ -45,6 +46,15 @@ const SUGGESTION_CATEGORIES = [
     { id: 'Outros', icon: 'shopping_bag', label: 'Outros' },
 ];
 
+const EXPENSE_CATEGORIES = [
+    { id: 'Hospedagem', icon: 'bed', label: 'Hospedagem' },
+    { id: 'Transporte', icon: 'flight', label: 'Transporte' },
+    { id: 'Alimentação', icon: 'restaurant', label: 'Comida' },
+    { id: 'Passeios', icon: 'confirmation_number', label: 'Lazer' },
+    { id: 'Mercado', icon: 'shopping_cart', label: 'Mercado' },
+    { id: 'Outros', icon: 'payments', label: 'Outros' },
+];
+
 interface QuickActionsMenuProps {
     isOpen: boolean;
     onClose: () => void;
@@ -80,6 +90,19 @@ const QuickActionsMenu: React.FC<QuickActionsMenuProps> = ({ isOpen, onClose }) 
     const [suggestionCreateExpense, setSuggestionCreateExpense] = useState(false);
     const [suggestionPaidBy, setSuggestionPaidBy] = useState('');
 
+    // Expense form state
+    const [isAddingExpense, setIsAddingExpense] = useState(false);
+    const [expenseAmount, setExpenseAmount] = useState('');
+    const [expenseDescription, setExpenseDescription] = useState('');
+    const [expenseCategory, setExpenseCategory] = useState('Outros');
+    const [expensePaidBy, setExpensePaidBy] = useState('');
+    const [expenseParticipants, setExpenseParticipants] = useState<string[]>([]);
+    const [expenseReceiptUrl, setExpenseReceiptUrl] = useState('');
+    const [expenseInstallmentEnabled, setExpenseInstallmentEnabled] = useState(false);
+    const [expenseInstallmentTotal, setExpenseInstallmentTotal] = useState('1');
+    const [expenseInstallmentPaid, setExpenseInstallmentPaid] = useState('1');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
     useEffect(() => {
         const loadTrips = async () => {
             if (isOpen) {
@@ -112,9 +135,20 @@ const QuickActionsMenu: React.FC<QuickActionsMenuProps> = ({ isOpen, onClose }) 
         setSuggestionPrice('');
         setSuggestionDescription('');
         setSuggestionImageUrl('');
-        setSuggestionStatus('confirmed');
         setSuggestionCreateExpense(false);
         setSuggestionPaidBy('');
+
+        setIsAddingExpense(false);
+        setExpenseAmount('');
+        setExpenseDescription('');
+        setExpenseCategory('Outros');
+        setExpensePaidBy('');
+        setExpenseParticipants([]);
+        setExpenseReceiptUrl('');
+        setExpenseInstallmentEnabled(false);
+        setExpenseInstallmentTotal('1');
+        setExpenseInstallmentPaid('1');
+        setIsSubmitting(false);
     };
 
     const handleActionClick = (action: QuickAction) => {
@@ -127,15 +161,18 @@ const QuickActionsMenu: React.FC<QuickActionsMenuProps> = ({ isOpen, onClose }) 
     };
 
     const handleTripSelect = async (tripId: string) => {
+        const trip = await storageService.getTripById(tripId);
+        if (!trip) return;
+
+        setSelectedTrip(trip);
+
         if (selectedAction === 'expense') {
-            setTimeout(() => {
-                navigate(`/finance/${tripId}/add`);
-                onClose();
-            }, 200);
+            setExpensePaidBy(trip.participants[0]?.id || '');
+            setExpenseParticipants(trip.participants.map(p => p.id));
+            setIsSelectingTrip(false);
+            setIsAddingExpense(true);
         } else if (selectedAction === 'suggestion') {
-            const trip = await storageService.getTripById(tripId);
-            setSelectedTrip(trip);
-            if (trip?.participants?.length > 0) {
+            if (trip.participants?.length > 0) {
                 setSuggestionPaidBy(trip.participants[0].id);
             }
             setIsSelectingTrip(false);
@@ -208,6 +245,39 @@ const QuickActionsMenu: React.FC<QuickActionsMenuProps> = ({ isOpen, onClose }) 
         }
     };
 
+    const handleCreateExpense = async () => {
+        if (!expenseAmount || !expenseDescription || !selectedTrip) return;
+
+        setIsSubmitting(true);
+        try {
+            const amount = parseFloat(expenseAmount.replace(',', '.'));
+            await storageService.createExpense({
+                tripId: selectedTrip.id,
+                amount,
+                description: expenseDescription,
+                category: expenseCategory as any,
+                paidBy: expensePaidBy,
+                participants: expenseParticipants,
+                date: new Date().toISOString(),
+                status: 'pending',
+                receiptUrl: expenseReceiptUrl || undefined,
+                paymentMethod: expenseInstallmentEnabled ? 'installment' : 'cash',
+                installment: expenseInstallmentEnabled ? {
+                    total: parseInt(expenseInstallmentTotal) || 2,
+                    paid: parseInt(expenseInstallmentPaid) || 0,
+                    firstDueDate: new Date().toISOString().split('T')[0],
+                    amount: amount / (parseInt(expenseInstallmentTotal) || 2)
+                } : undefined
+            });
+
+            onClose();
+        } catch (error) {
+            console.error('Error adding expense:', error);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
     const formatDate = (dateStr: string) => {
         if (!dateStr) return '';
         const date = new Date(dateStr + 'T00:00:00');
@@ -219,6 +289,9 @@ const QuickActionsMenu: React.FC<QuickActionsMenuProps> = ({ isOpen, onClose }) 
             setWizardStep(step => step - 1);
         } else if (isAddingSuggestion) {
             setIsAddingSuggestion(false);
+            setIsSelectingTrip(true);
+        } else if (isAddingExpense) {
+            setIsAddingExpense(false);
             setIsSelectingTrip(true);
         } else {
             resetAll();
@@ -728,6 +801,201 @@ const QuickActionsMenu: React.FC<QuickActionsMenuProps> = ({ isOpen, onClose }) 
                                     <span className="material-symbols-outlined">add</span>
                                     Adicionar ao Plano
                                 </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ==================== EXPENSE FORM ==================== */}
+                    {isAddingExpense && (
+                        <div className="animate-fade-in">
+                            <div className="px-6 pt-2 pb-4 flex items-center gap-4">
+                                <button onClick={goBack} className="w-10 h-10 flex items-center justify-center rounded-xl border border-terracotta-100 text-sunset-dark active:scale-95 transition-transform">
+                                    <span className="material-symbols-outlined">arrow_back</span>
+                                </button>
+                                <div>
+                                    <h2 className="text-xl font-bold text-sunset-dark">Novo Gasto</h2>
+                                    <p className="text-xs text-sunset-muted">{selectedTrip?.title || 'Preencha os detalhes'}</p>
+                                </div>
+                            </div>
+
+                            <div className="px-6 space-y-4 pb-4">
+                                {/* Amount */}
+                                <div>
+                                    <label className="text-[10px] font-bold text-sunset-muted uppercase tracking-widest block mb-2">Valor</label>
+                                    <div className="relative">
+                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sunset-muted font-bold">R$</span>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={expenseAmount}
+                                            onChange={e => setExpenseAmount(e.target.value)}
+                                            placeholder="0,00"
+                                            className="w-full h-14 pl-12 pr-4 bg-white border border-terracotta-100 rounded-2xl text-2xl font-black text-sunset-dark focus:outline-none focus:ring-2 focus:ring-terracotta-500"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Description */}
+                                <div>
+                                    <label className="text-[10px] font-bold text-sunset-muted uppercase tracking-widest block mb-2">Descrição</label>
+                                    <input
+                                        type="text"
+                                        value={expenseDescription}
+                                        onChange={e => setExpenseDescription(e.target.value)}
+                                        placeholder="Ex: Almoço na Praia"
+                                        className="w-full h-12 px-4 bg-white border border-terracotta-100 rounded-xl text-sm font-medium text-sunset-dark focus:outline-none focus:ring-2 focus:ring-terracotta-500"
+                                    />
+                                </div>
+
+                                {/* Payer */}
+                                <div>
+                                    <label className="text-[10px] font-bold text-sunset-muted uppercase tracking-widest block mb-2">Quem pagou?</label>
+                                    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                                        {selectedTrip?.participants.map(p => (
+                                            <button
+                                                key={p.id}
+                                                type="button"
+                                                onClick={() => setExpensePaidBy(p.id)}
+                                                className={`flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl transition-all ${expensePaidBy === p.id
+                                                    ? 'bg-terracotta-500 text-white shadow-md'
+                                                    : 'bg-white text-sunset-dark border border-terracotta-100'}`}
+                                            >
+                                                <img src={p.avatar} alt="" className="w-5 h-5 rounded-full object-cover" />
+                                                <span className="text-xs font-bold">{p.name.split(' ')[0]}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Split With */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <label className="text-[10px] font-bold text-sunset-muted uppercase tracking-widest">Dividir com</label>
+                                        <button
+                                            onClick={() => {
+                                                if (expenseParticipants.length === selectedTrip?.participants.length) {
+                                                    setExpenseParticipants([]);
+                                                } else {
+                                                    setExpenseParticipants(selectedTrip?.participants.map(p => p.id) || []);
+                                                }
+                                            }}
+                                            className="text-[10px] font-bold text-terracotta-500 uppercase"
+                                        >
+                                            {expenseParticipants.length === selectedTrip?.participants.length ? 'Desmarcar Todos' : 'Marcar Todos'}
+                                        </button>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {selectedTrip?.participants.map(p => (
+                                            <button
+                                                key={p.id}
+                                                type="button"
+                                                onClick={() => {
+                                                    if (expenseParticipants.includes(p.id)) {
+                                                        setExpenseParticipants(prev => prev.filter(id => id !== p.id));
+                                                    } else {
+                                                        setExpenseParticipants(prev => [...prev, p.id]);
+                                                    }
+                                                }}
+                                                className={`flex items-center gap-2 p-2 rounded-xl border transition-all ${expenseParticipants.includes(p.id)
+                                                    ? 'bg-terracotta-50 border-terracotta-200 text-terracotta-700'
+                                                    : 'bg-white border-terracotta-100 text-sunset-muted'
+                                                    }`}
+                                            >
+                                                <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${expenseParticipants.includes(p.id)
+                                                    ? 'bg-terracotta-500 border-terracotta-500 text-white'
+                                                    : 'border-terracotta-200 bg-white'
+                                                    }`}>
+                                                    {expenseParticipants.includes(p.id) && <span className="material-symbols-outlined text-[10px] font-black">check</span>}
+                                                </div>
+                                                <img src={p.avatar} alt="" className="w-5 h-5 rounded-full object-cover" />
+                                                <span className="text-xs font-bold truncate">{p.name.split(' ')[0]}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Category */}
+                                <div>
+                                    <label className="text-[10px] font-bold text-sunset-muted uppercase tracking-widest block mb-2">Categoria</label>
+                                    <div className="grid grid-cols-6 gap-2">
+                                        {EXPENSE_CATEGORIES.map(cat => (
+                                            <button
+                                                key={cat.id}
+                                                type="button"
+                                                onClick={() => setExpenseCategory(cat.id)}
+                                                className={`flex flex-col items-center justify-center py-2 rounded-xl transition-all ${expenseCategory === cat.id
+                                                    ? 'text-terracotta-600 bg-terracotta-50 ring-1 ring-terracotta-200'
+                                                    : 'text-sunset-muted hover:bg-white'
+                                                    }`}
+                                            >
+                                                <span className="material-symbols-outlined text-xl mb-0.5">{cat.icon}</span>
+                                                <span className="text-[9px] font-bold">{cat.label}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Installments */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between p-4 bg-white rounded-2xl border border-terracotta-100 shadow-sm">
+                                        <div className="flex items-center gap-3">
+                                            <span className="material-symbols-outlined text-terracotta-500">credit_card</span>
+                                            <span className="text-sm font-bold text-sunset-dark">Compra parcelada?</span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setExpenseInstallmentEnabled(!expenseInstallmentEnabled)}
+                                            className={`w-10 h-5 rounded-full transition-all ${expenseInstallmentEnabled ? 'bg-terracotta-500' : 'bg-terracotta-100'}`}
+                                        >
+                                            <div className={`w-4 h-4 bg-white rounded-full shadow-md transition-transform ${expenseInstallmentEnabled ? 'translate-x-5' : 'translate-x-0.5'}`}></div>
+                                        </button>
+                                    </div>
+
+                                    {expenseInstallmentEnabled && (
+                                        <div className="grid grid-cols-2 gap-4 animate-fade-in p-4 bg-terracotta-50/50 rounded-2xl border border-terracotta-100">
+                                            <div>
+                                                <label className="text-[10px] font-bold text-sunset-muted uppercase tracking-widest mb-2 block">Nº de Parcelas</label>
+                                                <input
+                                                    type="number"
+                                                    value={expenseInstallmentTotal}
+                                                    onChange={e => setExpenseInstallmentTotal(e.target.value)}
+                                                    className="w-full h-11 px-4 bg-white border border-terracotta-100 rounded-xl text-sm font-bold text-sunset-dark"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-bold text-sunset-muted uppercase tracking-widest mb-2 block">Já pagas</label>
+                                                <input
+                                                    type="number"
+                                                    value={expenseInstallmentPaid}
+                                                    onChange={e => setExpenseInstallmentPaid(e.target.value)}
+                                                    className="w-full h-11 px-4 bg-white border border-terracotta-100 rounded-xl text-sm font-bold text-sunset-dark"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Receipt */}
+                                <div>
+                                    <label className="text-[10px] font-bold text-sunset-muted uppercase tracking-widest block mb-2">Comprovante (Opcional)</label>
+                                    <ImageUpload
+                                        folder="receipts"
+                                        currentImage={expenseReceiptUrl}
+                                        onImageChange={setExpenseReceiptUrl}
+                                        placeholder="Anexar Comprovante"
+                                        className="h-32"
+                                    />
+                                </div>
+
+                                <LoadingButton
+                                    onClick={handleCreateExpense}
+                                    isLoading={isSubmitting}
+                                    loadingText="Salvando..."
+                                    disabled={!expenseAmount || !expenseDescription}
+                                    className="w-full h-14 bg-terracotta-500 text-white font-bold rounded-2xl shadow-lg shadow-terracotta-500/30"
+                                >
+                                    Criar Despesa
+                                </LoadingButton>
                             </div>
                         </div>
                     )}

@@ -33,6 +33,7 @@ export interface Expense {
   description?: string;
   paymentMethod?: PaymentMethod;
   installment?: Installment;
+  receiptUrl?: string;
 }
 
 export interface Trip {

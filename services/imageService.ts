@@ -13,7 +13,7 @@ export const imageService = {
     /**
      * Upload an image file to Supabase Storage
      */
-    async uploadImage(file: File, folder: 'trips' | 'profiles' | 'items'): Promise<UploadResult> {
+    async uploadImage(file: File, folder: 'trips' | 'profiles' | 'items' | 'receipts'): Promise<UploadResult> {
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) {
@@ -52,7 +52,7 @@ export const imageService = {
     /**
      * Upload a cropped image from a blob
      */
-    async uploadCroppedImage(blob: Blob, folder: 'trips' | 'profiles' | 'items'): Promise<UploadResult> {
+    async uploadCroppedImage(blob: Blob, folder: 'trips' | 'profiles' | 'items' | 'receipts'): Promise<UploadResult> {
         const file = new File([blob], `cropped_${Date.now()}.jpg`, { type: 'image/jpeg' });
         return this.uploadImage(file, folder);
     },

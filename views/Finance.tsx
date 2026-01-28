@@ -11,6 +11,7 @@ import ParticipantList from '../components/finance/ParticipantList';
 import Toast from '../components/Toast';
 import ConfirmModal from '../components/ConfirmModal';
 import LoadingButton from '../components/LoadingButton';
+import ImageUpload from '../components/ImageUpload';
 
 const CATEGORIES = [
     { id: 'Todos', icon: 'dashboard', label: 'Todos', color: 'bg-sunset-dark' },
@@ -40,6 +41,7 @@ const Finance = () => {
     const [category, setCategory] = useState<string>('Outros'); // Default
     const [paidBy, setPaidBy] = useState<string>('');
     const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
+    const [receiptUrl, setReceiptUrl] = useState<string>('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     // State for settings
@@ -59,6 +61,7 @@ const Finance = () => {
     const [editCategory, setEditCategory] = useState('');
     const [editPaidBy, setEditPaidBy] = useState('');
     const [editParticipants, setEditParticipants] = useState<string[]>([]);
+    const [editReceiptUrl, setEditReceiptUrl] = useState<string>('');
     const [expenseToDelete, setExpenseToDelete] = useState<string | null>(null);
 
     // State for Installments
@@ -245,6 +248,7 @@ const Finance = () => {
             participants: expenseParticipants,
             status: 'pending',
             date: new Date().toISOString(),
+            receiptUrl: receiptUrl,
             paymentMethod: editInstallmentEnabled ? 'installment' : 'cash',
             installment: editInstallmentEnabled ? {
                 total: parseInt(editInstallmentTotal) || 2,
@@ -264,6 +268,7 @@ const Finance = () => {
                 setExpenses(updatedExpenses);
                 setAmount('');
                 setDescription('');
+                setReceiptUrl('');
                 // Reset to default payer (first one) or keep last used? Resetting is safer.
                 if (currentTrip?.participants[0]) {
                     setPaidBy(currentTrip.participants[0].id);
@@ -366,6 +371,7 @@ const Finance = () => {
         setEditInstallmentTotal(expense.installment?.total.toString() || '2');
         setEditInstallmentPaid(expense.installment?.paid.toString() || '0');
         setEditInstallmentFirstDate(expense.installment?.firstDueDate || '');
+        setEditReceiptUrl(expense.receiptUrl || '');
     };
 
     const handleSaveEditExpense = async () => {
@@ -377,6 +383,7 @@ const Finance = () => {
             category: editCategory as any,
             paidBy: editPaidBy,
             participants: editParticipants,
+            receiptUrl: editReceiptUrl,
             paymentMethod: editInstallmentEnabled ? 'installment' : 'cash',
             installment: editInstallmentEnabled ? {
                 total: parseInt(editInstallmentTotal) || 2,
@@ -980,6 +987,20 @@ const Finance = () => {
                                 </div>
                             </div>
 
+                            {/* Receipt Upload */}
+                            <div>
+                                <label className="text-xs font-bold text-sunset-muted uppercase tracking-wider mb-2 block">
+                                    Foto do Comprovante (Opcional)
+                                </label>
+                                <ImageUpload
+                                    folder="receipts"
+                                    currentImage={receiptUrl}
+                                    onImageChange={setReceiptUrl}
+                                    placeholder="Anexar Comprovante"
+                                    className="h-32"
+                                />
+                            </div>
+
                             <LoadingButton
                                 type="submit"
                                 isLoading={isSubmitting}
@@ -1059,6 +1080,158 @@ const Finance = () => {
                                     <div className={`w-5 h-5 bg-white rounded-full shadow-md transition-transform ${optimizeTransfers ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Expense Modal */}
+            {editingExpense && (
+                <div className="fixed inset-0 z-50 flex items-end justify-center max-w-[480px] mx-auto">
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setEditingExpense(null)}></div>
+                    <div className="relative w-full bg-white rounded-t-3xl shadow-2xl max-h-[85vh] overflow-y-auto">
+                        <div className="sticky top-0 bg-white border-b border-terracotta-100 px-6 py-4 z-10">
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-xl font-bold">Editar Despesa</h2>
+                                <button onClick={() => setEditingExpense(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-terracotta-50 text-terracotta-600">
+                                    <span className="material-symbols-outlined text-xl">close</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="px-6 py-4 space-y-4">
+                            {/* Amount */}
+                            <div>
+                                <label className="text-xs font-bold text-sunset-muted uppercase tracking-wider mb-2 block">Valor</label>
+                                <div className="relative">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sunset-muted font-bold">R$</span>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        value={editAmount}
+                                        onChange={e => setEditAmount(e.target.value)}
+                                        className="w-full h-14 pl-12 pr-4 bg-warm-cream border border-terracotta-100 rounded-2xl text-2xl font-black text-sunset-dark focus:outline-none focus:ring-2 focus:ring-terracotta-500"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Description */}
+                            <div>
+                                <label className="text-xs font-bold text-sunset-muted uppercase tracking-wider mb-2 block">Descrição</label>
+                                <input
+                                    type="text"
+                                    value={editDescription}
+                                    onChange={e => setEditDescription(e.target.value)}
+                                    className="w-full h-12 px-4 bg-warm-cream border border-terracotta-100 rounded-2xl text-sm font-medium text-sunset-dark focus:outline-none focus:ring-2 focus:ring-terracotta-500"
+                                />
+                            </div>
+
+                            {/* Paid By */}
+                            <div>
+                                <label className="text-xs font-bold text-sunset-muted uppercase tracking-wider mb-2 block">Quem pagou?</label>
+                                <div className="relative">
+                                    <select
+                                        value={editPaidBy}
+                                        onChange={e => setEditPaidBy(e.target.value)}
+                                        className="w-full h-12 pl-4 pr-10 bg-warm-cream border border-terracotta-100 rounded-2xl text-sm font-bold text-sunset-dark appearance-none focus:outline-none focus:ring-2 focus:ring-terracotta-500"
+                                    >
+                                        {currentTrip?.participants.map(p => (
+                                            <option key={p.id} value={p.id}>{p.name}</option>
+                                        ))}
+                                    </select>
+                                    <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-sunset-muted pointer-events-none">expand_more</span>
+                                </div>
+                            </div>
+
+                            {/* Category */}
+                            <div>
+                                <label className="text-xs font-bold text-sunset-muted uppercase tracking-wider mb-2 block">Categoria</label>
+                                <div className="grid grid-cols-5 gap-2">
+                                    {CATEGORIES.filter(c => c.id !== 'Todos').map(cat => (
+                                        <button
+                                            key={cat.id}
+                                            type="button"
+                                            onClick={() => setEditCategory(cat.id)}
+                                            className={`flex flex-col items-center justify-center py-2 rounded-xl transition-all ${editCategory === cat.id
+                                                ? 'text-terracotta-600 bg-terracotta-50 ring-1 ring-terracotta-200'
+                                                : 'text-sunset-muted hover:bg-warm-cream'
+                                                }`}
+                                        >
+                                            <span className="material-symbols-outlined text-xl mb-0.5">{cat.icon}</span>
+                                            <span className="text-[9px] font-bold">{cat.label}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Installments Toggle */}
+                            <div className="flex items-center justify-between p-4 bg-warm-cream rounded-2xl border border-terracotta-100">
+                                <div className="flex items-center gap-3">
+                                    <span className="material-symbols-outlined text-terracotta-500">credit_card</span>
+                                    <span className="text-sm font-bold text-sunset-dark">Compra parcelada?</span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setEditInstallmentEnabled(!editInstallmentEnabled)}
+                                    className={`w-12 h-6 rounded-full transition-all ${editInstallmentEnabled ? 'bg-terracotta-500' : 'bg-terracotta-100'}`}
+                                >
+                                    <div className={`w-5 h-5 bg-white rounded-full shadow-md transition-transform ${editInstallmentEnabled ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
+                                </button>
+                            </div>
+
+                            {editInstallmentEnabled && (
+                                <div className="grid grid-cols-2 gap-4 animate-fade-in">
+                                    <div>
+                                        <label className="text-[10px] font-bold text-sunset-muted uppercase tracking-widest mb-2 block">Nº de Parcelas</label>
+                                        <input
+                                            type="number"
+                                            value={editInstallmentTotal}
+                                            onChange={e => setEditInstallmentTotal(e.target.value)}
+                                            className="w-full h-11 px-4 bg-warm-cream border border-terracotta-100 rounded-xl text-sm font-bold text-sunset-dark"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold text-sunset-muted uppercase tracking-widest mb-2 block">Já pagas</label>
+                                        <input
+                                            type="number"
+                                            value={editInstallmentPaid}
+                                            onChange={e => setEditInstallmentPaid(e.target.value)}
+                                            className="w-full h-11 px-4 bg-warm-cream border border-terracotta-100 rounded-xl text-sm font-bold text-sunset-dark"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Receipt */}
+                            <div>
+                                <label className="text-xs font-bold text-sunset-muted uppercase tracking-wider mb-2 block">Comprovante (Opcional)</label>
+                                <ImageUpload
+                                    folder="receipts"
+                                    currentImage={editReceiptUrl}
+                                    onImageChange={setEditReceiptUrl}
+                                    placeholder="Alterar Comprovante"
+                                    className="h-32"
+                                />
+                            </div>
+
+                            <LoadingButton
+                                onClick={handleSaveEditExpense}
+                                isLoading={isSubmitting}
+                                loadingText="Salvando..."
+                                className="w-full h-14 bg-terracotta-500 text-white font-bold rounded-2xl shadow-lg shadow-terracotta-500/30"
+                            >
+                                Salvar Alterações
+                            </LoadingButton>
+
+                            <button
+                                onClick={() => {
+                                    setExpenseToDelete(editingExpense.id);
+                                    setEditingExpense(null);
+                                }}
+                                className="w-full py-3 text-red-500 font-bold text-xs"
+                            >
+                                Excluir Despesa
+                            </button>
                         </div>
                     </div>
                 </div>

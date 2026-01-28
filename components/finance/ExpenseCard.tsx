@@ -45,6 +45,15 @@ const ExpenseCard: React.FC<ExpenseCardProps> = ({
                             {expense.installment.paid}/{expense.installment.total} pagas
                         </span>
                     )}
+                    {expense.receiptUrl && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); window.open(expense.receiptUrl, '_blank'); }}
+                            className="flex items-center gap-0.5 bg-emerald-100 text-emerald-700 text-[8px] font-bold px-1.5 py-0.5 rounded-full hover:bg-emerald-200 transition-colors active:scale-95"
+                        >
+                            <span className="material-symbols-outlined text-[10px]">image</span>
+                            RECIBO
+                        </button>
+                    )}
                 </div>
             </div>
             <div className="text-right">

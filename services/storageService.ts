@@ -43,6 +43,7 @@ const mapExpenseFromSupabase = (data: any): Expense => ({
     tripId: data.trip_id,
     paidBy: data.paid_by,
     paymentMethod: data.payment_method,
+    receiptUrl: data.receipt_url,
     participants: data.expense_division?.map((ed: any) => ed.participant_id) || [],
     installment: (data.installments?.[0] || data.installment) ? {
         total: (data.installments?.[0] || data.installment).total_count,
@@ -62,6 +63,7 @@ const mapExpenseToSupabase = (expense: Partial<Expense>) => {
     if (expense.date !== undefined) data.date = expense.date;
     if (expense.description !== undefined) data.description = expense.description;
     if (expense.paymentMethod !== undefined) data.payment_method = expense.paymentMethod;
+    if (expense.receiptUrl !== undefined) data.receipt_url = expense.receiptUrl;
     return data;
 };
 
