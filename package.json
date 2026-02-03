@@ -4,9 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host --port 5174",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview --port 5174",
+    "mobile": "cd mobile && npx expo start --port 8083"
   },
   "dependencies": {
     "@google/genai": "^1.38.0",

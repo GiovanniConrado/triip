@@ -137,7 +137,13 @@ const Finance = () => {
 
         expenses.forEach(e => {
             const payer = e.paidBy;
-            const amount = e.amount;
+            let amount = e.amount;
+
+            // Se for parcelado, o valor para acerto (balances) é apenas o que já foi pago
+            if (e.paymentMethod === 'installment' && e.installment) {
+                amount = e.installment.paid * e.installment.amount;
+            }
+
             const splitAmong = e.participants || [];
 
             if (splitAmong.length > 0) {
